@@ -1,5 +1,4 @@
-# Levanta el backend-api. Cuando existan frontend y backend-realtime se agregan aquí
-# (o en el docker-compose.yml raíz que levante todo el sistema).
+# Levanta el backend-api con: docker compose up --build
 services:
   backend-api:
     build: .
@@ -10,4 +9,9 @@ services:
       - .env
     environment:
       PORT: 3000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
