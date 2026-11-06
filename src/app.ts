@@ -18,8 +18,9 @@ app.use(
 );
 app.use(express.json());
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get("/", (_req, res) => res.redirect("/docs"));
+app.get("/api/docs.json", (_req, res) => res.json(swaggerSpec));
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 app.use(routes);
 
 app.use(notFound);
