@@ -1,0 +1,13 @@
+# Levanta el backend-api. Cuando existan frontend y backend-realtime se agregan aquí
+# (o en el docker-compose.yml raíz que levante todo el sistema).
+services:
+  backend-api:
+    build: .
+    container_name: backend-api
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+    restart: unless-stopped
