@@ -1,5 +1,6 @@
 import { Router } from "express";
 import baseRoutes from "./baseRoutes";
+import userRoutes from "./userRoutes";
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.get("/health", (_req, res) => {
 
 // Versionado de la API
 router.use("/api/v1", baseRoutes);
+router.use("/api/v1/users", userRoutes);
 
 export default router;

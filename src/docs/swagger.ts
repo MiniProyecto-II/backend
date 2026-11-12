@@ -1,8 +1,10 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import path from "path";
 
-// Lee los comentarios @openapi de las rutas (.ts en desarrollo, .js en producción)
-const routesGlob = path.join(__dirname, "..", "routes", "*.{ts,js}");
+// Normalizamos barras a "/" para que glob funcione en Windows y Linux/Render
+const routesGlob = path
+  .join(__dirname, "..", "routes", "*.{ts,js}")
+  .replace(/\\/g, "/");
 
 export const swaggerSpec = swaggerJsdoc({
   definition: {
@@ -10,7 +12,17 @@ export const swaggerSpec = swaggerJsdoc({
     info: {
       title: "Salón de Estudio Colaborativo - API",
       version: "1.0.0",
-      description: "Backend API (Sprint 0: base técnica end-to-end).",
+      description: "Backend API (Sprint 1: Identidad y Autenticación).",
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Pega aquí el ID Token de Firebase Authentication",
+        },
+      },
     },
   },
   apis: [routesGlob],
