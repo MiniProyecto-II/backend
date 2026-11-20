@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   checkUsername,
+  deleteMe,
   getMe,
   upsertProfile,
 } from "../controllers/userController";
@@ -101,5 +102,24 @@ router.get("/me", requireAuth, getMe);
  *         description: El nombre de usuario ya está ocupado
  */
 router.post("/profile", requireAuth, upsertProfile);
+
+/**
+ * @openapi
+ * /api/v1/users/me:
+ *   delete:
+ *     tags: [Usuarios y Autenticación]
+ *     summary: Elimina la cuenta del usuario autenticado (US-05)
+ *     description: Elimina las salas propias del usuario, borra su perfil en Firestore (liberando su username) y elimina su cuenta en Firebase Authentication.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Cuenta eliminada definitivamente
+ *       401:
+ *         description: No autorizado (sin token o token inválido)
+ *       503:
+ *         description: Error de comunicación con Firestore o Firebase Auth
+ */
+router.delete("/me", requireAuth, deleteMe);
 
 export default router;

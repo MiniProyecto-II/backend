@@ -1,5 +1,6 @@
-import { getDb } from "../config/firebase";
+import { getDb, getFirebaseAuth } from "../config/firebase";
 import { AppError } from "../middlewares/AppError";
+
 
 export interface UserProfile {
   uid: string;
@@ -69,5 +70,31 @@ export async function saveUserProfile(profile: UserProfile): Promise<UserProfile
     if (err instanceof AppError) throw err;
     console.error("Error guardando usuario en Firestore:", err);
     throw new AppError(503, "FIRESTORE_UNAVAILABLE", "No se pudo guardar el perfil de usuario.");
+  }
+}
+
+/** Elimina el perfil del usuario en Firestore (libera también su username). */
+export async function deleteUserProfile(uid: string): Promise<void> {
+  try {
+    const docRef = getDb().collection(COLLECTION_NAME).doc(uid);
+    await withTimeout(docRef.delete());
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    console.error("Error eliminando perfil en Firestore:", err);
+    throw new AppError(503, "FIRESTORE_UNAVAILABLE", "No se pudo eliminar el perfil en la base de datos.");
+  }
+}
+
+/** Elimina la cuenta del usuario en Firebase Authentication. */
+export async function deleteFirebaseAuthUser(uid: string): Promise<void> {
+  try {
+    await withTimeout(getFirebaseAuth().deleteUser(uid));
+  } catch (err: unknown) {
+    const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
+    // Si ya había sido borrado en Auth, no bloqueamos la limpieza
+    if (code === "auth/user-not-found") return;
+    if (err instanceof AppError) throw err;
+    console.error("Error eliminando usuario en Firebase Auth:", err);
+    throw new AppError(503, "AUTH_DELETE_FAILED", "No se pudo eliminar la cuenta de autenticación.");
   }
 }

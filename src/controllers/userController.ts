@@ -4,6 +4,7 @@ import {
   checkUsernameAvailability,
   getMyProfile,
   registerOrCompleteProfile,
+  deleteMyAccount,
 } from "../services/userService";
 
 /** GET /api/v1/users/check-username/:username (Público) */
@@ -50,6 +51,29 @@ export async function upsertProfile(
     }
     const profile = await registerOrCompleteProfile(req.user, req.body);
     res.status(201).json({ data: profile });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** DELETE /api/v1/users/me (Privado - requiere token Bearer) */
+export async function deleteMe(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "No autorizado.");
+    }
+    await deleteMyAccount(req.user.uid);
+    res.json({
+      data: {
+        deleted: true,
+        uid: req.user.uid,
+        message: "Cuenta eliminada definitivamente.",
+      },
+    });
   } catch (err) {
     next(err);
   }
