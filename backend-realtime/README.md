@@ -1,4 +1,4 @@
-# Backend de tiempo real BE-02
+# Backend de tiempo real BE-02 a BE-04
 
 Servicio independiente Node.js/TypeScript + Socket.IO. La API HTTP existente continúa con su propio proceso. Se reutilizan directamente los repositorios BE-01 de salas y mensajes mediante el workspace npm; no se duplica su lógica ni se permite acceso del navegador a Firestore.
 
@@ -50,7 +50,7 @@ La prueba opcional `npm run test:firestore --workspace backend-realtime` requier
 
 ## Alcance
 
-Presencia en memoria para una sola instancia. Antes de escalar horizontalmente se necesita adaptador compartido (por ejemplo Redis) y presencia distribuida. No hay confirmación de lectura, entrega exactamente una vez, deduplicación ni carga de historial por socket; recuperar historial mediante la API. Esta tarea implementa el servidor, no su integración visual ni su despliegue en producción.
+Presencia en memoria para una sola instancia. Antes de escalar horizontalmente se necesita adaptador compartido (por ejemplo Redis) y presencia distribuida. No hay confirmación de lectura, entrega exactamente una vez, deduplicación ni carga de historial por socket; recuperar historial mediante la API. El servicio está publicado en Render; la integración visual del cliente corresponde a FE-01.
 
 PR: https://github.com/MiniProyecto-II/backend/pull/3
 
@@ -58,3 +58,11 @@ Referencias oficiales: https://socket.io/docs/v4/server-api/ y https://socket.io
 
 
 Para incluir la autenticación de producción en esa misma prueba: RUN_FIREBASE_AUTH_INTEGRATION=1 y FIREBASE_WEB_API_KEY. Usar FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL y FIREBASE_PRIVATE_KEY para firma local. Se crea un usuario sintético, se intercambia un custom token por ID token, se conecta con el middleware real y se eliminan usuario y perfil al terminar. El resultado distingue realAuth y authCleanup. La evidencia entregada corresponde a esta modalidad completa.
+
+## Render y Compose
+
+Producción: https://miniproyecto-realtime.onrender.com. Health: https://miniproyecto-realtime.onrender.com/health. Swagger de la API: https://backend-1-s7a1.onrender.com/api/docs.
+
+Usar runtime Docker, rama main, Dockerfile backend-realtime/Dockerfile, contexto raíz del repositorio y Health Check Path /health. Integrar el PR en main antes de cambiar la rama de Render. Configurar FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY y CORS_ORIGINS en el servicio nuevo; no se heredan de backend-1. Un Environment Group puede compartir estos valores de forma administrada. Render define PORT. Auto-Deploy está desactivado para que el administrador controle la publicación.
+
+El docker-compose.yml de la raíz levanta frontend, API y realtime con docker compose up --build. Requiere el frontend como carpeta hermana y el .env local configurado; ver README de la raíz. La imagen realtime usa dos etapas, USER node y npm ci --omit=dev para el workspace del servicio.
