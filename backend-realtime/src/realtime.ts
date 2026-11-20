@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import { createHttpServer } from "./http";
+import { createSocketAuthMiddleware } from "./auth";
 import type { RealtimeConfig } from "./config";
 import type { getRoomById } from "../../src/repositories/roomRepository";
 import type { createMessage } from "../../src/repositories/messageRepository";
@@ -32,18 +33,7 @@ export function createRealtimeServer(config: RealtimeConfig, deps: Dependencies)
     return { roomId, users: [...users.values()], count: users.size };
   };
   const publish = (roomId: string) => io.to(channel(roomId)).emit("presence:update", snapshot(roomId));
-  io.use(async (socket, next) => {
-    try {
-      const token = socket.handshake.auth?.token;
-      if (typeof token !== "string" || !token.trim()) throw new Error();
-      socket.data.identity = await deps.authenticate(token);
-      next();
-    } catch {
-      const error = new Error("No se pudo validar la sesión y el perfil. Inicia sesión nuevamente.");
-      Object.assign(error, { data: { code: "UNAUTHORIZED" } });
-      next(error);
-    }
-  });
+  io.use(createSocketAuthMiddleware(deps.authenticate));
   io.on("connection", socket => {
     const identity: Identity = socket.data.identity;
     const joined = new Set<string>();
