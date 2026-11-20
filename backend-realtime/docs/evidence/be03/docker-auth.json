@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-20T02:42:29.800Z",
+  "environment": "Docker local miniproyecto-realtime:be03",
+  "build": "PASS",
+  "healthHttpStatus": 200,
+  "missingToken": {
+    "result": "PASS",
+    "code": "UNAUTHORIZED",
+    "message": "No autorizado. Inicia sesión con un perfil completo."
+  },
+  "credentialsMounted": false
+}
