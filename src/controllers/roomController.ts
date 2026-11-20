@@ -9,7 +9,7 @@ export async function createRoom(
   next: NextFunction
 ) {
   try {
-    const room = await roomService.createRoom(req.body);
+    const room = await roomService.createRoom({ ...req.body, ownerUid: req.user!.uid });
     res.status(201).json(room);
   } catch (error) {
     next(error);

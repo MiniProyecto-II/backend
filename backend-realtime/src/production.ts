@@ -8,7 +8,7 @@ export const productionDependencies: Dependencies = {
   async authenticate(token) {
     const decoded = await verifyFirebaseIdToken(token);
     const profile = await findUserByUid(decoded.uid);
-    if (!profile?.username?.trim()) throw new Error("PROFILE_INCOMPLETE");
+    if (profile?.status === "deleting" || !profile?.username?.trim()) throw new Error("PROFILE_INCOMPLETE");
     return { uid: decoded.uid, username: profile.username, expiresAt: decoded.exp * 1000 };
   },
   getRoomById,

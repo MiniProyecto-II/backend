@@ -10,7 +10,7 @@ export async function createMessage(
   try {
     const message = await messageService.createMessage(
       String(req.params.roomId),
-      req.body
+      { ...req.body, uid: req.user!.uid }
     );
     res.status(201).json(message);
   } catch (error) {
