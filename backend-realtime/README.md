@@ -59,5 +59,4 @@ Referencias oficiales: https://socket.io/docs/v4/server-api/ y https://socket.io
 
 Para incluir la autenticación de producción en esa misma prueba: RUN_FIREBASE_AUTH_INTEGRATION=1 y FIREBASE_WEB_API_KEY. Usar FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL y FIREBASE_PRIVATE_KEY para firma local. Se crea un usuario sintético, se intercambia un custom token por ID token, se conecta con el middleware real y se eliminan usuario y perfil al terminar. El resultado distingue realAuth y authCleanup. La evidencia entregada corresponde a esta modalidad completa.
 
-Verificación Docker pendiente: la descarga de node:22-alpine se interrumpió por transferencia detenida desde el registro; no se afirma una construcción exitosa de imagen ni despliegue público.
-
+Reprueba Docker aprobada el 19 de noviembre de 2026: imagen construida con Node 22.23.5; entrypoint compilado responde /health, rechaza sesión ausente y orígenes ajenos, y termina con exit code 0. Evidencia: docs/evidence/docker-startup.json y docker-results.png. La prueba del contenedor no monta credenciales Firebase; la persistencia y el ID token real se verificaron por separado. El arranque nativo directo fue rechazado por la revisión automática (blocked by policy); se comprobó el entrypoint mediante Docker. No se realizó despliegue público.
