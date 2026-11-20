@@ -80,5 +80,3 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
     assert.equal(evidence.cleanup, true, "Se requiere verificar limpieza de fixtures.");
   }
 });
-
-

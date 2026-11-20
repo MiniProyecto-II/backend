@@ -10,3 +10,6 @@ dist
 serviceAccountKey.json
 .env.*
 !**/.env.example
+
+**/.env.*
+!**/.env.example

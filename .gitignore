@@ -7,3 +7,6 @@ serviceAccountKey.json
 **/dist/
 **/.env
 **/serviceAccountKey.json
+
+**/.env.*
+!**/.env.example
