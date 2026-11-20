@@ -1,132 +1,74 @@
 import { DecodedIdToken } from "firebase-admin/auth";
 import { AppError } from "../middlewares/AppError";
-import {
-  findUserByUid,
-  findUserByUsername,
-  saveUserProfile,
-  UserProfile,
-} from "../repositories/userRepository";
-
-export interface UpsertProfileInput {
-  nombres?: unknown;
-  apellidos?: unknown;
-  username?: unknown;
-  avatar?: unknown;
+import * as repo from "../repositories/userRepository";
+import * as auth from "../repositories/authRepository";
+export interface UpsertProfileInput { nombres?: unknown; apellidos?: unknown; username?: unknown; avatar?: unknown; email?: unknown }
+// Match the currently deployed frontend: hyphen is not enabled there.
+const USERNAME_REGEX = /^[a-zA-Z0-9._]{3,20}$/;
+export function validateProfileInput(input: UpsertProfileInput) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError(400, "VALIDATION_ERROR", "Envía un perfil válido.");
+  for (const key of ["nombres", "apellidos"] as const) if (typeof input[key] !== "string" || input[key].trim().length < 2 || input[key].length > 100) throw new AppError(400, "VALIDATION_ERROR", "Nombres y apellidos deben tener entre 2 y 100 caracteres.");
+  const username = validateUsernameFormat(input.username);
+  if (input.avatar != null && (typeof input.avatar !== "string" || input.avatar.length > 2048 || (input.avatar !== "" && !/^https?:\/\//i.test(input.avatar)))) throw new AppError(400, "VALIDATION_ERROR", "El avatar debe ser una URL HTTP o HTTPS, o una cadena vacía.");
+  if (input.email !== undefined && (typeof input.email !== "string" || input.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim()))) throw new AppError(400, "VALIDATION_ERROR", "El correo no tiene un formato válido.");
+  return { nombres: (input.nombres as string).trim(), apellidos: (input.apellidos as string).trim(), username, usernameLower: username.toLowerCase(), avatar: typeof input.avatar === "string" ? input.avatar.trim() : undefined, email: typeof input.email === "string" ? repo.normalizeEmail(input.email) : undefined };
 }
-
-const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,20}$/;
-
-function validateUsernameFormat(rawUsername: unknown): string {
-  if (typeof rawUsername !== "string" || !rawUsername.trim()) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "El nombre de usuario es obligatorio."
-    );
-  }
-  const username = rawUsername.trim();
-  if (!USERNAME_REGEX.test(username)) {
-    throw new AppError(
-      400,
-      "INVALID_USERNAME",
-      "El nombre de usuario debe tener entre 3 y 20 caracteres y solo puede contener letras, números, puntos, guiones o guion bajo."
-    );
-  }
-  return username;
+function validateUsernameFormat(raw: unknown): string {
+  if (typeof raw !== "string" || !USERNAME_REGEX.test(raw.trim())) throw new AppError(400, "VALIDATION_ERROR", "El nombre debe tener de 3 a 20 caracteres: letras, números, punto o guion bajo.");
+  return raw.trim();
 }
-
-/** Verifica si un username está disponible. */
-export async function checkUsernameAvailability(rawUsername: string) {
-  const username = validateUsernameFormat(rawUsername);
-  const existing = await findUserByUsername(username);
-  return {
-    username,
-    available: !existing,
-  };
+export async function checkUsernameAvailability(raw: string) {
+  const username = validateUsernameFormat(raw); return { username, available: !await repo.findUserByUsername(username) };
 }
-
-/** Obtiene el perfil del usuario autenticado desde Firestore. */
-export async function getMyProfile(uid: string): Promise<UserProfile> {
-  const profile = await findUserByUid(uid);
-  if (!profile) {
-    throw new AppError(
-      404,
-      "PROFILE_NOT_FOUND",
-      "El usuario aún no ha completado su perfil."
-    );
-  }
+export async function getMyProfile(uid: string): Promise<repo.UserProfile> {
+  const profile = await repo.findUserByUid(uid);
+  if (!profile) throw new AppError(404, "PROFILE_NOT_FOUND", "El usuario aún no ha completado su perfil.");
   return profile;
 }
-
-/**
- * Crea o completa el perfil del usuario autenticado (registro manual o tras login con Google).
- * Valida campos obligatorios, formato y unicidad de username en el servidor.
- */
-export async function registerOrCompleteProfile(
-  authUser: DecodedIdToken,
-  input: UpsertProfileInput
-): Promise<UserProfile> {
-  // 1. Validar nombres y apellidos
-  if (typeof input.nombres !== "string" || input.nombres.trim().length < 2) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "Los nombres son obligatorios y deben tener al menos 2 caracteres."
-    );
-  }
-
-  if (typeof input.apellidos !== "string" || input.apellidos.trim().length < 2) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "Los apellidos son obligatorios y deben tener al menos 2 caracteres."
-    );
-  }
-
-  // 2. Validar formato del username
-  const username = validateUsernameFormat(input.username);
-
-  // 3. Validar avatar (opcional; si no envía, se asigna uno por defecto o el de Google)
-  let avatar = "";
-  if (input.avatar !== undefined && input.avatar !== null && input.avatar !== "") {
-    if (typeof input.avatar !== "string") {
-      throw new AppError(400, "VALIDATION_ERROR", "El avatar debe ser una cadena de texto válida.");
-    }
-    avatar = input.avatar.trim();
-  } else if (authUser.picture) {
-    avatar = authUser.picture;
-  }
-
-  // 4. Validar unicidad del username en el servidor (ignorando si ya pertenece a este mismo UID)
-  const existingByUsername = await findUserByUsername(username);
-  if (existingByUsername && existingByUsername.uid !== authUser.uid) {
-    throw new AppError(
-      409,
-      "USERNAME_TAKEN",
-      `El nombre de usuario "${username}" ya está ocupado. Elige otro.`
-    );
-  }
-
-  // 5. Verificar si ya existía el perfil para conservar createdAt
-  const existingProfile = await findUserByUid(authUser.uid);
-  const now = new Date().toISOString();
-
-  const signInProvider = authUser.firebase?.sign_in_provider;
-  const provider: "password" | "google" =
-    signInProvider === "google.com" ? "google" : "password";
-
-  const profile: UserProfile = {
-    uid: authUser.uid,
-    email: authUser.email ?? "",
-    nombres: input.nombres.trim(),
-    apellidos: input.apellidos.trim(),
-    username,
-    usernameLower: username.toLowerCase(),
-    avatar,
-    provider,
-    createdAt: existingProfile?.createdAt ?? now,
-    updatedAt: now,
-  };
-
-  return await saveUserProfile(profile);
+const unavailable = () => new AppError(503, "PROFILE_UNAVAILABLE", "No se pudo completar la actualización. Reintenta para recuperar la operación.");
+/** Recover an abandoned saga; never steal a live request's reservation. */
+async function recoverProfile(uid: string) {
+  const op = await repo.getProfileMutation(uid); if (!op) return;
+  if (Date.now() - op.startedAt < 120000) throw new AppError(503, "PROFILE_BUSY", "Hay una actualización en curso. Reintenta en dos minutos.");
+  const current = await auth.findAuthUser(uid);
+  if (op.previous && repo.normalizeEmail(current.email ?? "") !== repo.normalizeEmail(op.previous.email)) await auth.updateAuthEmail(uid, op.previous.email);
+  await repo.finishProfile(op, false);
 }
+async function writeProfile(authUser: DecodedIdToken, input: UpsertProfileInput, editing: boolean) {
+  const values = validateProfileInput(input);
+  try {
+    await recoverProfile(authUser.uid);
+    const previous = await repo.findUserByUid(authUser.uid);
+    if (editing && !previous) throw new AppError(404, "PROFILE_NOT_FOUND", "Completa tu perfil antes de editarlo.");
+    const account = await auth.findAuthUser(authUser.uid);
+    const email = values.email ?? account.email ?? "";
+    const changingEmail = repo.normalizeEmail(email) !== repo.normalizeEmail(account.email ?? "");
+    const google = account.providerData.some(p => p.providerId === "google.com");
+    if (changingEmail && (!editing || google)) throw new AppError(400, "VALIDATION_ERROR", google ? "Las cuentas de Google no permiten cambiar el correo desde el perfil." : "El correo del registro procede de la sesión autenticada.");
+    const emailOwner = await auth.findAuthUserByEmail(email);
+    if (emailOwner && emailOwner.uid !== authUser.uid) throw new AppError(409, "EMAIL_TAKEN", "El correo ya está registrado. Usa otro correo.");
+    const now = new Date().toISOString();
+    const desired: repo.UserProfile = { uid: authUser.uid, email, nombres: values.nombres, apellidos: values.apellidos, username: values.username, usernameLower: values.usernameLower, avatar: values.avatar ?? previous?.avatar ?? authUser.picture ?? "", provider: google ? "google" : "password", createdAt: previous?.createdAt ?? now, updatedAt: now };
+    const operation = await repo.stageProfile(desired, previous?.updatedAt);
+    try {
+      if (changingEmail) await auth.updateAuthEmail(authUser.uid, email);
+      return await repo.finishProfile(operation, true);
+    } catch (error) {
+      // A commit response can be lost even when Firestore committed. Re-read before compensation.
+      const pending = await repo.getProfileMutation(authUser.uid);
+      if (!pending) {
+        const saved = await repo.findUserByUid(authUser.uid);
+        if (saved?.updatedAt === desired.updatedAt) return saved;
+        throw unavailable();
+      }
+      try {
+        if (changingEmail) await auth.updateAuthEmail(authUser.uid, account.email!, account.emailVerified);
+        await repo.finishProfile(operation, false);
+      } catch { console.error(JSON.stringify({ event: "profile_compensation_failed", retryable: true })); throw unavailable(); }
+      if ((error as { code?: string }).code === "auth/email-already-exists") throw new AppError(409, "EMAIL_TAKEN", "El correo ya está registrado. Usa otro correo.");
+      throw error;
+    }
+  } catch (error) { if (error instanceof AppError) throw error; throw unavailable(); }
+}
+export const registerOrCompleteProfile = (user: DecodedIdToken, input: UpsertProfileInput) => writeProfile(user, input, false);
+export const updateMyProfile = (user: DecodedIdToken, input: UpsertProfileInput) => writeProfile(user, input, true);
