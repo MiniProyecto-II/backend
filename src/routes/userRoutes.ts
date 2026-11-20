@@ -3,6 +3,7 @@ import {
   checkUsername,
   getMe,
   upsertProfile,
+  updateProfile,
 } from "../controllers/userController";
 import { requireAuth } from "../middlewares/authMiddleware";
 
@@ -47,7 +48,7 @@ router.get("/check-username/:username", checkUsername);
  * /api/v1/users/me:
  *   get:
  *     tags: [Usuarios y Autenticación]
- *     summary: Obtiene el perfil del usuario autenticado
+ *     summary: Consulta el perfil del usuario autenticado US 04
  *     description: Verifica el token de Firebase Auth y consulta el perfil en Firestore.
  *     security:
  *       - bearerAuth: []
@@ -67,7 +68,7 @@ router.get("/me", requireAuth, getMe);
  *   post:
  *     tags: [Usuarios y Autenticación]
  *     summary: Crea o completa el perfil del usuario en Firestore
- *     description: Usado tanto tras registro manual (US-01) como tras registro con Google (US-02). Valida unicidad de username en el servidor.
+ *     description: Usado tanto tras registro manual (US-01) como tras registro con Google (US-02). Reserva username y correo en una transacción compartida con PUT; unicidad sin distinguir mayúsculas.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -101,5 +102,7 @@ router.get("/me", requireAuth, getMe);
  *         description: El nombre de usuario ya está ocupado
  */
 router.post("/profile", requireAuth, upsertProfile);
+
+router.put("/profile", requireAuth, updateProfile);
 
 export default router;

@@ -14,5 +14,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npm test
       - run: npm run build --workspace backend-realtime
       - run: npm test --workspace backend-realtime

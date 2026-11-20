@@ -1,3 +1,4 @@
+import { profilePaths } from "./profile";
 import swaggerJsdoc from "swagger-jsdoc";
 import path from "path";
 import { collaborationPaths, collaborationSchemas, realtimeContract } from "./collaboration";
@@ -10,7 +11,7 @@ export const swaggerSpec = swaggerJsdoc({
     openapi: "3.0.3",
     info: {
       title: "Salón de Estudio Colaborativo - API",
-      version: "1.1.0",
+      version: "1.2.0",
       description: [
         "Identidad, salas y mensajes persistidos (BE-01 a BE-04, TS-02).",
         "**Tiempo real:** [https://miniproyecto-realtime.onrender.com](https://miniproyecto-realtime.onrender.com). Estado: [/health](https://miniproyecto-realtime.onrender.com/health).",
@@ -29,7 +30,7 @@ export const swaggerSpec = swaggerJsdoc({
         bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "ID token de Firebase Authentication para las rutas HTTP que requieren sesión" },
       },
     },
-    paths: collaborationPaths,
+    paths: { ...collaborationPaths, ...profilePaths },
     "x-socketio": realtimeContract,
   },
   apis: [routesGlob],

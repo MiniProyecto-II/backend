@@ -50,3 +50,16 @@ Las variables FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY y
 Swagger documenta las rutas HTTP reales de BE-01 y enlaza el servidor Socket.IO. Los eventos no son endpoints REST. Las rutas HTTP de salas y mensajes exigen Authorization Bearer con ID token Firebase; el handshake realtime exige auth.token. Ambos transportes comparten verificador. La integración del cliente Socket.IO en el frontend corresponde a FE-01.
 
 Los documentos de entrega y resultados de QA se conservan fuera de Git. EVIDENCE_OUTPUT_DIR permite guardar resultados de integración en una ruta absoluta externa al repositorio.
+
+## Perfil US 04
+
+`GET /api/v1/users/me` consulta el perfil; no se duplica con otro GET.
+`PUT /api/v1/users/profile` requiere Bearer ID token y nombres, apellidos, username; avatar y email son opcionales. Devuelve `{data: perfil}`. El uid procede del token. POST y PUT comparten reservas transaccionales `usernames/{usernameLower}` y `emails/{correoCodificado}`. Conservar el propio nombre es válido; al confirmar se libera el anterior. Los nombres admiten 2–100 caracteres; username 3–20 letras ASCII, números, punto y guion bajo, igual que el frontend actual (el guion todavía no se admite en FE).
+
+Correo: política aprobada por coordinación el 19/11/2026. Solo contraseña; cuentas vinculadas a Google no pueden cambiarlo aquí. Admin Auth garantiza unicidad del correo y Firestore reserva el mismo identificador. `profileMutations/{uid}` guarda la operación antes de cambiar Auth; si Firestore falla se compensa Auth. Ante resultado de commit desconocido se consulta el estado antes de compensar. Si la compensación no puede terminar, se conserva la operación y las reservas; una petición posterior tras 2 minutos la recupera. No existe una transacción distribuida entre Auth y Firestore: un 503 no se considera éxito. No ejecutar ediciones de correo fuera de la API durante una recuperación.
+
+### Migración de usuarios Sprint 1
+
+Antes de habilitar los nuevos escritores, detener temporalmente los escritores antiguos y ejecutar `npx tsx src/scripts/migrateUsernames.ts` (solo diagnóstico), luego `npx tsx src/scripts/migrateUsernames.ts --apply`. Usa las mismas variables Admin que la API, nunca una clave en Git. Detecta colisiones case-insensitive sin imprimir datos personales; si hay colisiones se detiene para resolverlas manualmente. La aplicación se realiza por usuario en transacción y es repetible. El script no elimina ni reasigna usuarios. Después desplegar POST y PUT juntos. Si se interrumpe, repetir antes de reabrir escrituras. Las reservas son la autoridad para concurrencia; las consultas de perfiles mantienen compatibilidad durante la migración.
+
+Si la única colisión corresponde a un perfil sin cuenta Auth, puede usarse `npm run migrate:usernames -- --apply --archive-orphans`: verifica `auth/user-not-found`, archiva una copia completa en `profileMigrationArchive/{uid}` y retira ese perfil huérfano de `users` en una transacción. El archivo se conserva para restauración administrativa; no borra salas ni mensajes del perfil antiguo. No archiva cuentas activas ni sobreescribe archivos existentes. Sin esta opción explícita, una colisión detiene la migración. El archivo es administrativo y no se expone por la API.
