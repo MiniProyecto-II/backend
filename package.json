@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "API REST del Salon de Estudio Colaborativo",
   "main": "dist/server.js",
+  "workspaces": ["backend-realtime"],
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",

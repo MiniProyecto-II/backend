@@ -3,3 +3,10 @@ dist
 .env
 .git
 *.md
+**/node_modules
+**/dist
+**/.env
+**/serviceAccountKey.json
+serviceAccountKey.json
+.env.*
+!**/.env.example

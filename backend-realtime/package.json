@@ -1,0 +1,26 @@
+{
+  "name": "backend-realtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor Socket.IO de salas, presencia y chat",
+  "main": "dist/backend-realtime/src/server.js",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/backend-realtime/src/server.js",
+    "test": "tsx --test test/*.test.ts",
+    "test:firestore": "tsx --test test/firestore.integration.ts"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "firebase-admin": "^14.5.0",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "socket.io-client": "^4.8.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
