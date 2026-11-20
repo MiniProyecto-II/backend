@@ -1,6 +1,7 @@
 {
-  "date": "2026-11-20T01:45:43.994Z",
-  "environment": "Socket.IO local con Firestore real; identidad inyectada solo en la prueba",
+  "date": "2026-11-20T01:59:34.123Z",
+  "environment": "Socket.IO local con Firebase Auth y Firestore reales",
+  "realAuth": true,
   "cases": [
     {
       "id": "RT01",
@@ -16,7 +17,7 @@
       "id": "RT03",
       "result": "PASS",
       "description": "Mensaje consultado en Firestore con repositorio BE01",
-      "messageId": "Kf0JRNfyHmeyBID6NgqA"
+      "messageId": "ZYU6wlhQpQSiwAEYdWXm"
     },
     {
       "id": "RT04",
@@ -31,7 +32,8 @@
   ],
   "cleanup": true,
   "rooms": [
-    "nrL23Ly8Opbz0DqBSyr6",
-    "ORuxFyg2TPkfAzrNcwGJ"
-  ]
+    "qIUFVYJKFXlx5VVXH9eR",
+    "6XsQEJrQl0MoDeCxZe3S"
+  ],
+  "authCleanup": true
 }

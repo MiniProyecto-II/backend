@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { io, Socket } from "socket.io-client";
 import { initializeFirebase } from "../src/firebase";
-import { getDb } from "../../src/config/firebase";
+import { getFirebaseAuth, getDb } from "../../src/config/firebase";
 import { createRoom, deleteRoom } from "../../src/repositories/roomRepository";
 import { getMessageById, getMessagesByRoom } from "../../src/repositories/messageRepository";
 import { createRealtimeServer } from "../src/realtime";
@@ -16,15 +16,31 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
   initializeFirebase();
   const uid = `qa-be02-${randomUUID()}`;
   const rooms: string[] = [], clients: Socket[] = [];
-  const evidence: any = { date: new Date().toISOString(), environment: "Socket.IO local con Firestore real; identidad inyectada solo en la prueba", cases: [], cleanup: false };
-  const server = createRealtimeServer({ port: 3001, corsOrigins: ["http://localhost:5173"] }, { ...productionDependencies, authenticate: async () => ({ uid, username: uid, expiresAt: Date.now() + 120000 }) });
+  const realAuth = process.env.RUN_FIREBASE_AUTH_INTEGRATION === "1";
+  let token = "synthetic-test-identity";
+  const evidence: any = { date: new Date().toISOString(), environment: realAuth ? "Socket.IO local con Firebase Auth y Firestore reales" : "Socket.IO local con Firestore real; identidad inyectada solo en la prueba", realAuth, cases: [], cleanup: false };
+  const server = createRealtimeServer({ port: 3001, corsOrigins: ["http://localhost:5173"] }, realAuth ? productionDependencies : { ...productionDependencies, authenticate: async () => ({ uid, username: uid, expiresAt: Date.now() + 120000 }) });
   const ack = (s: Socket, event: string, data: unknown): Promise<any> => s.timeout(15000).emitWithAck(event, data);
   try {
+    if (realAuth) {
+      assert.ok(process.env.FIREBASE_WEB_API_KEY, "Falta FIREBASE_WEB_API_KEY");
+      await getFirebaseAuth().createUser({ uid });
+      await getDb().collection("users").doc(uid).set({ uid, username: uid, provider: "password" });
+      const customToken = await getFirebaseAuth().createCustomToken(uid);
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${process.env.FIREBASE_WEB_API_KEY}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: customToken, returnSecureToken: true }), signal: AbortSignal.timeout(20000),
+      });
+      const result = await response.json() as any;
+      assert.ok(result.idToken, `No se obtuvo ID token: HTTP ${response.status}`);
+      token = result.idToken;
+      await productionDependencies.authenticate(token);
+    }
     for (let n = 0; n < 2; n++) rooms.push((await createRoom({ name: `QA BE02 ${uid} ${n}`, ownerUid: uid, ownerUsername: uid })).id);
     await new Promise<void>(r => server.http.listen(0, "127.0.0.1", r));
     const url = `http://127.0.0.1:${(server.http.address() as any).port}`;
     for (let n = 0; n < 3; n++) {
-      const s = io(url, { auth: { token: "synthetic-test-identity" }, transports: ["websocket"], extraHeaders: { Origin: "http://localhost:5173" }, reconnection: false }); clients.push(s);
+      const s = io(url, { auth: { token }, transports: ["websocket"], extraHeaders: { Origin: "http://localhost:5173" }, reconnection: false }); clients.push(s);
       await new Promise<void>((resolve, reject) => { s.once("connect", resolve); s.once("connect_error", reject); });
       assert.equal((await ack(s, "room:join", { roomId: rooms[n === 2 ? 1 : 0] })).ok, true);
     }
@@ -52,8 +68,11 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
       evidence.cleanupError = "No se pudo completar la limpieza; revisar IDs de rooms.";
     }
     evidence.rooms = rooms;
-
-
+    if (realAuth) {
+      await getDb().collection("users").doc(uid).delete();
+      await getFirebaseAuth().deleteUser(uid).catch(error => { if (error.code !== "auth/user-not-found") throw error; });
+      evidence.authCleanup = true;
+    }
     evidence.cleanup = !evidence.cleanupError && (await Promise.all(rooms.map(id => getDb().collection("rooms").doc(id).get()))).every(s => !s.exists);
     const evidenceDir = resolve(__dirname, "../docs/evidence");
     mkdirSync(evidenceDir, { recursive: true });
@@ -61,3 +80,5 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
     assert.equal(evidence.cleanup, true, "Se requiere verificar limpieza de fixtures.");
   }
 });
+
+
