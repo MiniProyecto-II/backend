@@ -139,12 +139,22 @@ export async function deleteUserProfile(uid: string): Promise<void> {
     if (snap.exists) {
       const data = snap.data() as Partial<UserProfile>;
       if (data.usernameLower) {
-        await db.collection("usernames").doc(data.usernameLower).delete().catch(() => undefined);
+        await reservation("usernames", data.usernameLower).delete().catch(() => undefined);
       }
       if (data.email) {
-        await db.collection("emails").doc(data.email.trim().toLowerCase()).delete().catch(() => undefined);
+        await reservation("emails", normalizeEmail(data.email)).delete().catch(() => undefined);
       }
     }
+
+    // Respaldo: eliminar cualquier reserva huérfana asociada a este uid
+    const [byUidNames, byUidEmails] = await Promise.all([
+      db.collection("usernames").where("uid", "==", uid).get(),
+      db.collection("emails").where("uid", "==", uid).get(),
+    ]);
+    await Promise.all([
+      ...byUidNames.docs.map((d) => d.ref.delete().catch(() => undefined)),
+      ...byUidEmails.docs.map((d) => d.ref.delete().catch(() => undefined)),
+    ]);
 
     await docRef.delete();
   } catch (err) {
