@@ -1,3 +1,4 @@
+import { findAuthUser } from "./authRepository";
 import { getDb } from "../config/firebase";
 import { AppError } from "../middlewares/AppError";
 import { randomUUID } from "node:crypto";
@@ -82,8 +83,30 @@ export async function saveUserProfile(profile: UserProfile): Promise<UserProfile
   return finishProfile(await stageProfile(profile), true);
 }
 /** Run once before accepting new writers. Dry run reports collisions without personal data. */
-export async function migrateProfileReservations(apply = false) {
-  const users = await getDb().collection("users").get();
+export async function migrateProfileReservations(apply = false, archiveOrphans = false) {
+  let users = await getDb().collection("users").get();
+  let archived = 0;
+  if (archiveOrphans) {
+    // Explicit reversible archive: only orphaned profiles sharing an email with another profile.
+    const counts = new Map<string, number>();
+    for (const d of users.docs) { const email = normalizeEmail(d.get("email") ?? ""); counts.set(email, (counts.get(email) ?? 0) + 1); }
+    for (const d of users.docs) {
+      if ((counts.get(normalizeEmail(d.get("email") ?? "")) ?? 0) < 2) continue;
+      try { await findAuthUser(d.id); continue; }
+      catch (error) { if ((error as {code?: string}).code !== "auth/user-not-found") throw error; }
+      if (!apply) { archived++; continue; }
+      await getDb().runTransaction(async tx => {
+        const fresh = await tx.get(d.ref), archive = getDb().collection("profileMigrationArchive").doc(d.id);
+        const existingArchive = await tx.get(archive);
+        if (!fresh.exists) return;
+        if (!fresh.updateTime?.isEqual(d.updateTime!) || existingArchive.exists) throw new AppError(409, "MIGRATION_CHANGED", "El perfil o archivo cambió. Revisar antes de continuar.");
+        tx.create(archive, { profile: fresh.data(), reason: "duplicate-email-without-auth", archivedAt: new Date().toISOString() });
+        tx.delete(d.ref);
+      });
+      archived++;
+    }
+    if (apply) users = await getDb().collection("users").get();
+  }
   const names = new Set<string>(), emails = new Set<string>(); let collisions = 0;
   for (const d of users.docs) {
     const p = d.data() as UserProfile, name = p.username.trim().toLowerCase(), email = normalizeEmail(p.email);
@@ -102,5 +125,5 @@ export async function migrateProfileReservations(apply = false) {
       tx.set(nr, { uid: d.id }); tx.set(er, { uid: d.id }); tx.update(d.ref, { usernameLower: name, emailLower: email });
     });
   }
-  return { scanned: users.size, applied: apply, collisions };
+  return { scanned: users.size, applied: apply, collisions, archived };
 }
