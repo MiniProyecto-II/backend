@@ -2,6 +2,7 @@ import { DecodedIdToken } from "firebase-admin/auth";
 import { AppError } from "../middlewares/AppError";
 import * as repoModule from "../repositories/userRepository";
 import * as authModule from "../repositories/authRepository";
+import { deleteRoom, getAllRooms } from "../repositories/roomRepository";
 const repo = { ...repoModule }; const auth = { ...authModule };
 export const profileDependencies = { repo, auth };
 export interface UpsertProfileInput { nombres?: unknown; apellidos?: unknown; username?: unknown; avatar?: unknown; email?: unknown }
@@ -75,3 +76,20 @@ async function writeProfile(authUser: DecodedIdToken, input: UpsertProfileInput,
 export const registerOrCompleteProfile = (user: DecodedIdToken, input: UpsertProfileInput) => writeProfile(user, input, false);
 export const updateMyProfile = (user: DecodedIdToken, input: UpsertProfileInput) => writeProfile(user, input, true);
 
+/**
+ * Elimina definitivamente la cuenta del usuario autenticado (US-05):
+ * 1. Elimina las salas propias del usuario (y sus mensajes).
+ * 2. Elimina el perfil en Firestore (liberando su username y email).
+ * 3. Elimina el usuario en Firebase Authentication.
+ */
+export async function deleteMyAccount(uid: string): Promise<void> {
+  const allRooms = await getAllRooms();
+  const ownedRooms = allRooms.filter((room) => room.ownerUid === uid);
+
+  for (const room of ownedRooms) {
+    await deleteRoom(room.id);
+  }
+
+  await repo.deleteUserProfile(uid);
+  await repo.deleteFirebaseAuthUser(uid);
+}

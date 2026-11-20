@@ -1,7 +1,8 @@
+import { getDb, getFirebaseAuth } from "../config/firebase";
 import { findAuthUser } from "./authRepository";
-import { getDb } from "../config/firebase";
 import { AppError } from "../middlewares/AppError";
 import { randomUUID } from "node:crypto";
+
 
 export interface UserProfile {
   uid: string; email: string; nombres: string; apellidos: string; username: string;
@@ -126,4 +127,52 @@ export async function migrateProfileReservations(apply = false, archiveOrphans =
     });
   }
   return { scanned: users.size, applied: apply, collisions, archived };
+}
+
+/** Elimina el perfil del usuario en Firestore y libera sus reservas de username/email. */
+export async function deleteUserProfile(uid: string): Promise<void> {
+  try {
+    const db = getDb();
+    const docRef = db.collection("users").doc(uid);
+    const snap = await docRef.get();
+
+    if (snap.exists) {
+      const data = snap.data() as Partial<UserProfile>;
+      if (data.usernameLower) {
+        await reservation("usernames", data.usernameLower).delete().catch(() => undefined);
+      }
+      if (data.email) {
+        await reservation("emails", normalizeEmail(data.email)).delete().catch(() => undefined);
+      }
+    }
+
+    // Respaldo: eliminar cualquier reserva huérfana asociada a este uid
+    const [byUidNames, byUidEmails] = await Promise.all([
+      db.collection("usernames").where("uid", "==", uid).get(),
+      db.collection("emails").where("uid", "==", uid).get(),
+    ]);
+    await Promise.all([
+      ...byUidNames.docs.map((d) => d.ref.delete().catch(() => undefined)),
+      ...byUidEmails.docs.map((d) => d.ref.delete().catch(() => undefined)),
+    ]);
+
+    await docRef.delete();
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    console.error("Error eliminando perfil en Firestore:", err);
+    throw new AppError(503, "FIRESTORE_UNAVAILABLE", "No se pudo eliminar el perfil en la base de datos.");
+  }
+}
+
+/** Elimina la cuenta del usuario en Firebase Authentication. */
+export async function deleteFirebaseAuthUser(uid: string): Promise<void> {
+  try {
+    await getFirebaseAuth().deleteUser(uid);
+  } catch (err: unknown) {
+    const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
+    if (code === "auth/user-not-found") return;
+    if (err instanceof AppError) throw err;
+    console.error("Error eliminando usuario en Firebase Auth:", err);
+    throw new AppError(503, "AUTH_DELETE_FAILED", "No se pudo eliminar la cuenta de autenticación.");
+  }
 }
