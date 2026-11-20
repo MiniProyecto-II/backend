@@ -13,3 +13,8 @@ serviceAccountKey.json
 
 **/.env.*
 !**/.env.example
+
+backend-realtime/docs
+**/DUE*
+**/evidence
+**/evidencias
