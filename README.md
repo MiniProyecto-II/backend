@@ -47,6 +47,6 @@ Las variables FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY y
 
 `npm ci`, `npm run build`, `npm run build --workspace backend-realtime` y `npm test --workspace backend-realtime` verifican el backend. El README de backend-realtime explica eventos, autenticación y ejecución del servicio.
 
-Swagger documenta las rutas HTTP reales de BE-01 y enlaza el servidor Socket.IO. Los eventos no son endpoints REST. Las rutas HTTP de salas y mensajes mantienen su seguridad actual; la verificación de ID token de BE-03 está aplicada al handshake realtime. La integración del cliente Socket.IO en el frontend corresponde a FE-01.
+Swagger documenta las rutas HTTP reales de BE-01 y enlaza el servidor Socket.IO. Los eventos no son endpoints REST. Las rutas HTTP de salas y mensajes exigen Authorization Bearer con ID token Firebase; el handshake realtime exige auth.token. Ambos transportes comparten verificador. La integración del cliente Socket.IO en el frontend corresponde a FE-01.
 
 Los documentos de entrega y resultados de QA se conservan fuera de Git. EVIDENCE_OUTPUT_DIR permite guardar resultados de integración en una ruta absoluta externa al repositorio.
