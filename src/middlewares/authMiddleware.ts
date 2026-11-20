@@ -1,3 +1,4 @@
+import { isAccountDeleting } from "../repositories/accountRepository";
 import { NextFunction, Request, Response } from "express";
 import { DecodedIdToken } from "firebase-admin/auth";
 import { verifyFirebaseIdToken } from "../services/firebaseTokenVerifier";
@@ -43,6 +44,12 @@ export async function requireAuth(
     }
 
     const decodedToken = await verifyFirebaseIdToken(token);
+    if (!(req.method === "DELETE" && req.originalUrl.split("?")[0] === "/api/v1/users/account")) {
+      let deleting: boolean;
+      try { deleting = await isAccountDeleting(decodedToken.uid); }
+      catch { throw new AppError(503, "ACCOUNT_STATE_UNAVAILABLE", "No se pudo comprobar el estado de la cuenta."); }
+      if (deleting) throw new AppError(401, "ACCOUNT_DELETING", "La cuenta se está eliminando. Solo puedes reintentar la eliminación.");
+    }
     req.user = decodedToken;
     next();
   } catch (err) {

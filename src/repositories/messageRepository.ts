@@ -40,6 +40,8 @@ export async function createMessage(
   // La transacción impide crear mensajes en salas eliminadas.
   await getDb().runTransaction(async (transaction) => {
     const roomSnapshot = await transaction.get(roomRef);
+    const author = await transaction.get(getDb().collection("users").doc(data.uid));
+    if (!author.exists || author.get("status") === "deleting" || roomSnapshot.get("status") === "deleting") throw new AppError(401, "ACCOUNT_UNAVAILABLE", "La cuenta o la sala ya no admite mensajes.");
 
     if (!roomSnapshot.exists) {
       throw new AppError(

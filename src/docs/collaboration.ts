@@ -19,13 +19,13 @@ export const collaborationSchemas = {
     type: "object", required: ["id", "name", "ownerUid", "ownerUsername", "createdAt", "updatedAt"],
     properties: { id: { type: "string" }, name: text, ownerUid: text, ownerUsername: text, createdAt: ref("FirestoreTimestamp"), updatedAt: ref("FirestoreTimestamp") },
   },
-  CreateRoom: { type: "object", required: ["name", "ownerUid", "ownerUsername"], properties: { name: text, ownerUid: text, ownerUsername: text } },
+  CreateRoom: { type: "object", required: ["name", "ownerUsername"], properties: { name: text, ownerUid: { ...text, description: "Ignorado en creación HTTP; procede del token." }, ownerUsername: text } },
   UpdateRoom: { type: "object", required: ["name"], properties: { name: text } },
   Message: {
-    type: "object", required: ["id", "uid", "username", "text", "createdAt"],
+    type: "object", required: ["id", "username", "text", "createdAt"], description: "Los mensajes anonimizados omiten uid y usan Usuario eliminado como username.",
     properties: { id: { type: "string" }, uid: text, username: text, text, createdAt: ref("FirestoreTimestamp") },
   },
-  CreateMessage: { type: "object", required: ["uid", "username", "text"], properties: { uid: text, username: text, text } },
+  CreateMessage: { type: "object", required: ["username", "text"], properties: { uid: { ...text, description: "Ignorado en creación HTTP; procede del token." }, username: text, text } },
   UpdateMessage: { type: "object", required: ["text"], properties: { text } },
   ApiError: { type: "object", required: ["error"], properties: { error: { type: "object", required: ["code", "message"], properties: { code: { type: "string" }, message: { type: "string" } } } } },
 };
@@ -62,3 +62,4 @@ export const realtimeContract = {
   serverEvents: ["message:new", "presence:update", "realtime:error"],
   acknowledgement: "{ok:true,data} | {ok:false,error:{code,message}}",
 };
+

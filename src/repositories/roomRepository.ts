@@ -24,12 +24,10 @@ export async function createRoom(
     updatedAt: now
   };
 
-  await docRef.set({
-    name: room.name,
-    ownerUid: room.ownerUid,
-    ownerUsername: room.ownerUsername,
-    createdAt: room.createdAt,
-    updatedAt: room.updatedAt
+  await getDb().runTransaction(async transaction => {
+    const owner = await transaction.get(getDb().collection("users").doc(data.ownerUid));
+    if (!owner.exists || owner.get("status") === "deleting") throw new AppError(401, "ACCOUNT_UNAVAILABLE", "La cuenta ya no admite nuevas salas.");
+    transaction.set(docRef, { name: room.name, ownerUid: room.ownerUid, ownerUsername: room.ownerUsername, createdAt: room.createdAt, updatedAt: room.updatedAt });
   });
 
   return room;

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { findAuthUser } from "./authRepository";
 import { getDb } from "../config/firebase";
 import { AppError } from "../middlewares/AppError";
@@ -35,6 +36,8 @@ export async function stageProfile(profile: UserProfile, expectedUpdatedAt?: str
     const db = getDb(), userRef = db.collection("users").doc(profile.uid), opRef = db.collection("profileMutations").doc(profile.uid);
     return await db.runTransaction(async tx => {
       const user = await tx.get(userRef), op = await tx.get(opRef);
+      const deletion = await tx.get(db.collection("accountDeletions").doc(createHash("sha256").update(profile.uid).digest("hex")));
+      if (deletion.exists) throw new AppError(409, "ACCOUNT_DELETING", "La cuenta se está eliminando.");
       const previous = user.exists ? user.data() as UserProfile : null;
       if (previous?.status === "deleting") throw new AppError(409, "ACCOUNT_DELETING", "La cuenta se está eliminando.");
       if (op.exists) throw new AppError(503, "PROFILE_BUSY", "Hay una actualización en curso. Reintenta en unos segundos.");
