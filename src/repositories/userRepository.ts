@@ -133,20 +133,20 @@ export async function migrateProfileReservations(apply = false, archiveOrphans =
 export async function deleteUserProfile(uid: string): Promise<void> {
   try {
     const db = getDb();
-    const docRef = db.collection(COLLECTION_NAME).doc(uid);
-    const snap = await withTimeout(docRef.get());
+    const docRef = db.collection("users").doc(uid);
+    const snap = await docRef.get();
 
     if (snap.exists) {
       const data = snap.data() as Partial<UserProfile>;
       if (data.usernameLower) {
-        await withTimeout(db.collection("usernames").doc(data.usernameLower).delete()).catch(() => undefined);
+        await db.collection("usernames").doc(data.usernameLower).delete().catch(() => undefined);
       }
       if (data.email) {
-        await withTimeout(db.collection("emails").doc(data.email.trim().toLowerCase()).delete()).catch(() => undefined);
+        await db.collection("emails").doc(data.email.trim().toLowerCase()).delete().catch(() => undefined);
       }
     }
 
-    await withTimeout(docRef.delete());
+    await docRef.delete();
   } catch (err) {
     if (err instanceof AppError) throw err;
     console.error("Error eliminando perfil en Firestore:", err);
@@ -157,7 +157,7 @@ export async function deleteUserProfile(uid: string): Promise<void> {
 /** Elimina la cuenta del usuario en Firebase Authentication. */
 export async function deleteFirebaseAuthUser(uid: string): Promise<void> {
   try {
-    await withTimeout(getFirebaseAuth().deleteUser(uid));
+    await getFirebaseAuth().deleteUser(uid);
   } catch (err: unknown) {
     const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
     if (code === "auth/user-not-found") return;
