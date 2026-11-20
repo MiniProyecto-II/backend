@@ -5,6 +5,7 @@ import {
   getMyProfile,
   registerOrCompleteProfile,
   deleteMyAccount,
+  updateMyProfile,
 } from "../services/userService";
 
 /** GET /api/v1/users/check-username/:username (Público) */
@@ -77,4 +78,10 @@ export async function deleteMe(
   } catch (err) {
     next(err);
   }
+}
+export async function updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "No autorizado.");
+    res.json({ data: await updateMyProfile(req.user, req.body) });
+  } catch (error) { next(error); }
 }

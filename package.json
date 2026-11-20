@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "description": "API REST del Salon de Estudio Colaborativo",
   "main": "dist/server.js",
-  "workspaces": ["backend-realtime"],
+  "workspaces": [
+    "backend-realtime"
+  ],
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "tsx --test test/*.test.ts",
+    "migrate:usernames": "tsx src/scripts/migrateUsernames.ts"
   },
   "keywords": [],
   "author": "",
