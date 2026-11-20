@@ -1,8 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { saveResult } from "./output";
 import { io, Socket } from "socket.io-client";
 import type { Request, Response } from "express";
 import { initializeFirebase } from "../src/firebase";
@@ -74,8 +73,7 @@ test("BE03 con Firebase Auth real y middleware de producción local", { skip: pr
       getFirebaseAuth().deleteUser(uid).catch(error => { if (error.code !== "auth/user-not-found") throw error; }),
     ]);
     evidence.cleanup = cleanup.every(result => result.status === "fulfilled");
-    const dir = resolve(__dirname, "../docs/evidence/be03"); mkdirSync(dir, { recursive: true });
-    writeFileSync(resolve(dir, "firebase-handshake-local.json"), JSON.stringify(evidence, null, 2));
+    saveResult("be03/firebase-handshake-local.json", evidence);
     assert.equal(evidence.cleanup, true, "No se completó la limpieza del fixture propio");
   }
 });

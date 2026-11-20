@@ -1,8 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { saveResult } from "./output";
 import { io, Socket } from "socket.io-client";
 import { initializeFirebase } from "../src/firebase";
 import { getFirebaseAuth, getDb } from "../../src/config/firebase";
@@ -74,9 +73,7 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
       evidence.authCleanup = true;
     }
     evidence.cleanup = !evidence.cleanupError && (await Promise.all(rooms.map(id => getDb().collection("rooms").doc(id).get()))).every(s => !s.exists);
-    const evidenceDir = resolve(__dirname, "../docs/evidence");
-    mkdirSync(evidenceDir, { recursive: true });
-    writeFileSync(resolve(evidenceDir, "firestore.json"), JSON.stringify(evidence, null, 2));
+    saveResult("firestore.json", evidence);
     assert.equal(evidence.cleanup, true, "Se requiere verificar limpieza de fixtures.");
   }
 });

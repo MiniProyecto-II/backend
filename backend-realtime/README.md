@@ -46,7 +46,7 @@ El contenedor ejecuta como usuario node. Ajustar la ruta y permisos del volumen.
 
 `npm test --workspace backend-realtime` usa conexiones reales Socket.IO con repositorios controlados. `npm run build` comprueba la API existente. `npm run build --workspace backend-realtime` comprueba el servicio nuevo.
 
-La prueba opcional `npm run test:firestore --workspace backend-realtime` requiere RUN_FIRESTORE_INTEGRATION=1 y credenciales Admin. Crea tres clientes y dos salas sintéticas; verifica persistencia con BE-01 y limpia sus propios datos en finally. La identidad está inyectada únicamente en esta prueba para aislar la persistencia: no valida Firebase Auth de extremo a extremo ni modifica el middleware de producción. No ejecutarla con una cuenta sin permisos de limpieza. La evidencia se escribe en docs/evidence/firestore.json.
+La prueba opcional `npm run test:firestore --workspace backend-realtime` requiere RUN_FIRESTORE_INTEGRATION=1 y credenciales Admin. Crea tres clientes y dos salas sintéticas; verifica persistencia con BE-01 y limpia sus propios datos en finally. La identidad está inyectada únicamente en esta prueba para aislar la persistencia: no valida Firebase Auth de extremo a extremo ni modifica el middleware de producción. No ejecutarla con una cuenta sin permisos de limpieza. Los resultados solo se guardan si EVIDENCE_OUTPUT_DIR apunta a una carpeta absoluta fuera del repositorio; si no se configura, las pruebas no escriben informes.
 
 ## Alcance
 
@@ -58,5 +58,3 @@ Referencias oficiales: https://socket.io/docs/v4/server-api/ y https://socket.io
 
 
 Para incluir la autenticación de producción en esa misma prueba: RUN_FIREBASE_AUTH_INTEGRATION=1 y FIREBASE_WEB_API_KEY. Usar FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL y FIREBASE_PRIVATE_KEY para firma local. Se crea un usuario sintético, se intercambia un custom token por ID token, se conecta con el middleware real y se eliminan usuario y perfil al terminar. El resultado distingue realAuth y authCleanup. La evidencia entregada corresponde a esta modalidad completa.
-
-Reprueba Docker aprobada el 19 de noviembre de 2026: imagen construida con Node 22.23.5; entrypoint compilado responde /health, rechaza sesión ausente y orígenes ajenos, y termina con exit code 0. Evidencia: docs/evidence/docker-startup.json y docker-results.png. La prueba del contenedor no monta credenciales Firebase; la persistencia y el ID token real se verificaron por separado. El arranque nativo directo fue rechazado por la revisión automática (blocked by policy); se comprobó el entrypoint mediante Docker. No se realizó despliegue público.
