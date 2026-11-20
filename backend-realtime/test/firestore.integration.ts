@@ -41,16 +41,23 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
     assert.equal((await getMessagesByRoom(rooms[0])).length, 1); assert.equal(received[1].length, 1);
     evidence.cases.push({ id: "RT05", result: "PASS", description: "Mensaje vacío no guardado ni emitido" });
     evidence.rooms = rooms;
+  } catch (error) {
+    evidence.error = error instanceof Error ? error.message : "Fallo sin detalle";
+    throw error;
   } finally {
     clients.forEach(s => s.disconnect()); await server.close();
-    for (const id of rooms) await deleteRoom(id);
+    try {
+      for (const id of rooms) await deleteRoom(id);
+    } catch {
+      evidence.cleanupError = "No se pudo completar la limpieza; revisar IDs de rooms.";
+    }
+    evidence.rooms = rooms;
 
 
-    evidence.cleanup = (await Promise.all(rooms.map(id => getDb().collection("rooms").doc(id).get()))).every(s => !s.exists);
+    evidence.cleanup = !evidence.cleanupError && (await Promise.all(rooms.map(id => getDb().collection("rooms").doc(id).get()))).every(s => !s.exists);
     const evidenceDir = resolve(__dirname, "../docs/evidence");
     mkdirSync(evidenceDir, { recursive: true });
     writeFileSync(resolve(evidenceDir, "firestore.json"), JSON.stringify(evidence, null, 2));
+    assert.equal(evidence.cleanup, true, "Se requiere verificar limpieza de fixtures.");
   }
 });
-
-
