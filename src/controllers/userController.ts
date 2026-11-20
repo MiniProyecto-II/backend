@@ -1,3 +1,4 @@
+import { deleteMyAccount } from "../services/accountService";
 import { NextFunction, Request, Response } from "express";
 import { AppError } from "../middlewares/AppError";
 import {
@@ -59,5 +60,13 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
   try {
     if (!req.user) throw new AppError(401, "UNAUTHORIZED", "No autorizado.");
     res.json({ data: await updateMyProfile(req.user, req.body) });
+  } catch (error) { next(error); }
+}
+
+export async function deleteAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) throw new AppError(401, "UNAUTHORIZED", "No autorizado.");
+    await deleteMyAccount(req.user.uid);
+    res.status(204).end();
   } catch (error) { next(error); }
 }

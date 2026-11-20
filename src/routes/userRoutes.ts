@@ -4,6 +4,7 @@ import {
   getMe,
   upsertProfile,
   updateProfile,
+  deleteAccount,
 } from "../controllers/userController";
 import { requireAuth } from "../middlewares/authMiddleware";
 
@@ -104,5 +105,7 @@ router.get("/me", requireAuth, getMe);
 router.post("/profile", requireAuth, upsertProfile);
 
 router.put("/profile", requireAuth, updateProfile);
+
+router.delete("/account", requireAuth, deleteAccount);
 
 export default router;

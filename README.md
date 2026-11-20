@@ -61,3 +61,18 @@ Correo: política aprobada por coordinación el 19/11/2026. Solo contraseña; cu
 ### Migración de usuarios Sprint 1
 
 Antes de habilitar los nuevos escritores, detener temporalmente los escritores antiguos y ejecutar `npx tsx src/scripts/migrateUsernames.ts` (solo diagnóstico), luego `npx tsx src/scripts/migrateUsernames.ts --apply`. Usa las mismas variables Admin que la API, nunca una clave en Git. Detecta colisiones case-insensitive sin imprimir datos personales; si hay colisiones se detiene para resolverlas manualmente. La aplicación se realiza por usuario en transacción y es repetible. El script no elimina ni reasigna usuarios. Después desplegar POST y PUT juntos. Si se interrumpe, repetir antes de reabrir escrituras. Las reservas son la autoridad para concurrencia; las consultas de perfiles mantienen compatibilidad durante la migración.
+
+## Eliminación US 05 y política de datos asociados
+
+Política aprobada por coordinación el 19/11/2026. `DELETE /api/v1/users/account` usa solo el uid del Bearer token y devuelve **204 sin cuerpo**. No requiere reautenticación. No acepta un uid del cuerpo como destino. Primero ejecuta BE 08, después elimina `users/{uid}` y por último Firebase Auth. La ausencia previa del perfil o de Auth es tolerada por las operaciones de borrado; el middleware requiere una sesión válida (tras borrar Auth el token antiguo devuelve 401).
+
+- Username y correo: se liberan las reservas que aún pertenecen al uid; nunca se borra una reserva reclamada por otra persona.
+- Salas propias: se eliminan con todos sus mensajes; no se transfieren porque no hay otro propietario designado.
+- Mensajes en salas ajenas: se conserva texto/fecha e historial, se elimina el campo uid y el autor pasa a `Usuario eliminado`.
+- Perfil: lo elimina BE 07 después de la limpieza. Auth se elimina al final para permitir reintentar con el token válido ante fallo parcial.
+
+Cada lectura y lote está limitado (20 salas, 100 mensajes). El barrido guarda cursor por sala en `accountDeletions/{sha256(uid)}`; si consume su presupuesto de 5 s devuelve 503 y la siguiente solicitud continúa. El presupuesto se evalúa entre operaciones, no cancela una operación Firestore ya en curso. El trabajo no promete atomicidad entre todos los lotes: mantiene un estado explícito y recuperable y nunca responde éxito antes de terminar. El marcador no almacena uid ni datos personales y se elimina al concluir. Los logs solo incluyen evento, código y contadores. Los datos parcialmente eliminados no se restauran; el reintento termina la política.
+
+Mientras se elimina, el middleware rechaza las demás rutas de la cuenta. Los repositorios comprueban transaccionalmente el estado del autor/propietario y de la sala antes de nuevas escrituras, incluso desde sockets ya abiertos. La API deriva el uid del emisor del token para no recrear referencias a otra cuenta eliminada. Los mensajes anonimizados omiten uid: los consumidores deben tolerar su ausencia. **Integración pendiente de Sprint 3 US 07:** cerrar inmediatamente conexiones realtime de la persona y avisar a participantes cuando se elimina la sala; esta entrega bloquea sus escrituras pero no promete desconexión instantánea distribuida.
+
+La migración de reservas de US 04 debe ejecutarse antes de habilitar los escritores nuevos. US 05 depende de US 04; revisar e integrar primero el PR de perfil.
