@@ -1,7 +1,9 @@
 import { DecodedIdToken } from "firebase-admin/auth";
 import { AppError } from "../middlewares/AppError";
-import * as repo from "../repositories/userRepository";
-import * as auth from "../repositories/authRepository";
+import * as repoModule from "../repositories/userRepository";
+import * as authModule from "../repositories/authRepository";
+const repo = { ...repoModule }; const auth = { ...authModule };
+export const profileDependencies = { repo, auth };
 export interface UpsertProfileInput { nombres?: unknown; apellidos?: unknown; username?: unknown; avatar?: unknown; email?: unknown }
 // Match the currently deployed frontend: hyphen is not enabled there.
 const USERNAME_REGEX = /^[a-zA-Z0-9._]{3,20}$/;
@@ -20,7 +22,7 @@ function validateUsernameFormat(raw: unknown): string {
 export async function checkUsernameAvailability(raw: string) {
   const username = validateUsernameFormat(raw); return { username, available: !await repo.findUserByUsername(username) };
 }
-export async function getMyProfile(uid: string): Promise<repo.UserProfile> {
+export async function getMyProfile(uid: string): Promise<repoModule.UserProfile> {
   const profile = await repo.findUserByUid(uid);
   if (!profile) throw new AppError(404, "PROFILE_NOT_FOUND", "El usuario aún no ha completado su perfil.");
   return profile;
@@ -48,7 +50,7 @@ async function writeProfile(authUser: DecodedIdToken, input: UpsertProfileInput,
     const emailOwner = await auth.findAuthUserByEmail(email);
     if (emailOwner && emailOwner.uid !== authUser.uid) throw new AppError(409, "EMAIL_TAKEN", "El correo ya está registrado. Usa otro correo.");
     const now = new Date().toISOString();
-    const desired: repo.UserProfile = { uid: authUser.uid, email, nombres: values.nombres, apellidos: values.apellidos, username: values.username, usernameLower: values.usernameLower, avatar: values.avatar ?? previous?.avatar ?? authUser.picture ?? "", provider: google ? "google" : "password", createdAt: previous?.createdAt ?? now, updatedAt: now };
+    const desired: repoModule.UserProfile = { uid: authUser.uid, email, nombres: values.nombres, apellidos: values.apellidos, username: values.username, usernameLower: values.usernameLower, avatar: values.avatar ?? previous?.avatar ?? authUser.picture ?? "", provider: google ? "google" : "password", createdAt: previous?.createdAt ?? now, updatedAt: now };
     const operation = await repo.stageProfile(desired, previous?.updatedAt);
     try {
       if (changingEmail) await auth.updateAuthEmail(authUser.uid, email);
@@ -72,3 +74,4 @@ async function writeProfile(authUser: DecodedIdToken, input: UpsertProfileInput,
 }
 export const registerOrCompleteProfile = (user: DecodedIdToken, input: UpsertProfileInput) => writeProfile(user, input, false);
 export const updateMyProfile = (user: DecodedIdToken, input: UpsertProfileInput) => writeProfile(user, input, true);
+
