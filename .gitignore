@@ -3,3 +3,16 @@ dist
 .env
 serviceAccountKey.json
 *.log
+**/node_modules/
+**/dist/
+**/.env
+**/serviceAccountKey.json
+
+**/.env.*
+!**/.env.example
+
+# Documentos de entrega y evidencias se conservan fuera del repositorio.
+/backend-realtime/docs/
+**/DUE*
+**/evidence/
+**/evidencias/

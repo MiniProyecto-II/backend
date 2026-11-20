@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { DecodedIdToken } from "firebase-admin/auth";
-import { getFirebaseAuth } from "../config/firebase";
+import { verifyFirebaseIdToken } from "../services/firebaseTokenVerifier";
 import { AppError } from "./AppError";
 
 // Extendemos el tipo Request de Express para que TypeScript reconozca req.user
@@ -42,7 +42,7 @@ export async function requireAuth(
       );
     }
 
-    const decodedToken = await getFirebaseAuth().verifyIdToken(token);
+    const decodedToken = await verifyFirebaseIdToken(token);
     req.user = decodedToken;
     next();
   } catch (err) {

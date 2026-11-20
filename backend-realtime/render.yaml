@@ -1,0 +1,24 @@
+# Configuración declarativa del servicio realtime independiente.
+# En Render, seleccionar esta ruta como Blueprint Path desde la raíz del repo.
+services:
+  - type: web
+    name: miniproyecto-realtime
+    runtime: docker
+    repo: https://github.com/MiniProyecto-II/backend
+    branch: main
+    plan: free
+    autoDeployTrigger: "off"
+    dockerfilePath: ./backend-realtime/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        value: https://uv-stream.vercel.app,http://localhost:5173
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
