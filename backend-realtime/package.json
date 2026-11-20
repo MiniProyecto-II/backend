@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/backend-realtime/src/server.js",
     "test": "tsx --test test/*.test.ts",
-    "test:firestore": "tsx --test test/firestore.integration.ts"
+    "test:firestore": "tsx --test test/firestore.integration.ts",
+    "test:auth:integration": "tsx --test test/auth.integration.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.9",
