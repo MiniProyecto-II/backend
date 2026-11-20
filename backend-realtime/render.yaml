@@ -1,11 +1,11 @@
-# Blueprint opcional para un NUEVO servicio realtime; no se ha aplicado en Render.
+# Configuración declarativa del servicio realtime independiente.
 # En Render, seleccionar esta ruta como Blueprint Path desde la raíz del repo.
 services:
   - type: web
     name: miniproyecto-realtime
     runtime: docker
     repo: https://github.com/MiniProyecto-II/backend
-    branch: feature/TS-02-modelo-salas
+    branch: main
     plan: free
     autoDeployTrigger: "off"
     dockerfilePath: ./backend-realtime/Dockerfile

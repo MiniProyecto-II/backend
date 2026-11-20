@@ -1,17 +1,67 @@
-# Levanta el backend-api con: docker compose up --build
+# Desde backend, con frontend clonado como carpeta hermana y .env configurado:
+# docker compose up --build
+name: miniproyecto2
 services:
   backend-api:
-    build: .
-    container_name: backend-api
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
-    env_file:
-      - .env
+      - "${API_HOST_PORT:-3000}:3000"
+    env_file: .env
     environment:
       PORT: 3000
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,https://uv-stream.vercel.app}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
-      interval: 30s
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  backend-realtime:
+    build:
+      context: .
+      dockerfile: backend-realtime/Dockerfile
+    ports:
+      - "${REALTIME_HOST_PORT:-3001}:3001"
+    env_file: .env
+    environment:
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,https://uv-stream.vercel.app}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ${FRONTEND_CONTEXT:-../frontend}
+      args:
+        VITE_API_URL: http://localhost:${API_HOST_PORT:-3000}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        VITE_DOMINIO_CORREO: ${VITE_DOMINIO_CORREO:-correounivalle.edu.co}
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:80"
+    depends_on:
+      backend-api:
+        condition: service_healthy
+      backend-realtime:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/ingreso"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped

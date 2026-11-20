@@ -1,21 +1,19 @@
-# ---------- Etapa 1: compilar TypeScript ----------
+# API independiente; el workspace realtime se construye con su propio Dockerfile.
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+COPY package.json package-lock.json ./
+RUN npm ci --workspaces=false
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-# ---------- Etapa 2: imagen final (solo producción) ----------
-FROM node:22-alpine
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+ENV PORT=3000
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --workspaces=false && npm cache clean --force
 COPY --from=build /app/dist ./dist
-
-# Render inyecta PORT; por defecto 3000
 EXPOSE 3000
 USER node
 CMD ["node", "dist/server.js"]
