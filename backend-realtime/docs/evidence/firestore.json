@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-20T01:45:43.994Z",
+  "environment": "Socket.IO local con Firestore real; identidad inyectada solo en la prueba",
+  "cases": [
+    {
+      "id": "RT01",
+      "result": "PASS",
+      "description": "Dos clientes de la misma sala reciben el mensaje"
+    },
+    {
+      "id": "RT02",
+      "result": "PASS",
+      "description": "Otra sala no recibe el mensaje"
+    },
+    {
+      "id": "RT03",
+      "result": "PASS",
+      "description": "Mensaje consultado en Firestore con repositorio BE01",
+      "messageId": "Kf0JRNfyHmeyBID6NgqA"
+    },
+    {
+      "id": "RT04",
+      "result": "PASS",
+      "description": "Sala inexistente bloqueada"
+    },
+    {
+      "id": "RT05",
+      "result": "PASS",
+      "description": "Mensaje vacío no guardado ni emitido"
+    }
+  ],
+  "cleanup": true,
+  "rooms": [
+    "nrL23Ly8Opbz0DqBSyr6",
+    "ORuxFyg2TPkfAzrNcwGJ"
+  ]
+}
