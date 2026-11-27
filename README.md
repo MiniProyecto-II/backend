@@ -55,6 +55,10 @@ Los documentos de entrega y resultados de QA se conservan fuera de Git. EVIDENCE
 
 `PUT /api/v1/rooms/:roomId` (y `PATCH` como alias) renombra y `DELETE /api/v1/rooms/:roomId` elimina la sala junto con todos sus mensajes, en lotes de Firestore. Solo el anfitrión puede hacerlo: el solicitante sale siempre del ID token y se ignoran `ownerUid` y `ownerUsername` del cuerpo, también al crear. Orden de respuesta: 401 sin token, 404 sala inexistente, 403 `NOT_ROOM_HOST`, 400 `INVALID_ROOM_NAME` (vacío o de más de 60 caracteres) y 200. `DELETE` responde 200 con `{ id, name, deleted: true }`. Los participantes conectados reciben `room-updated` o `room-deleted` desde el servicio realtime (ver backend-realtime/README.md).
 
+## Unirse a una sala por ID (US-08 · SCRUM-353)
+
+`GET /api/v1/rooms/:roomId/join` (Bearer ID token) valida que la sala existe antes de conectarse por Socket.IO (`room:join`). Responde 200 con `{ id, name, hostId }` (hostId = uid del anfitrión) y nada más. Recorta espacios del ID en el servidor; un ID vacío, solo con espacios, inexistente o que no es un ID válido de Firestore responde 404 `ROOM_NOT_FOUND` «Sala no encontrada.» (nunca 500). Solo lee: no añade participantes ni escribe en Firestore. Las salas no tienen campo de estado, así que solo se valida la existencia.
+
 ## Perfil US 04
 
 `GET /api/v1/users/me` consulta el perfil; no se duplica con otro GET.

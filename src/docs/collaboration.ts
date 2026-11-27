@@ -30,6 +30,7 @@ export const collaborationSchemas = {
   },
   CreateRoom: { type: "object", required: ["name"], properties: { name: roomName }, description: "El anfitrión sale del token y de su perfil; ownerUid y ownerUsername enviados en el cuerpo se ignoran." },
   UpdateRoom: { type: "object", required: ["name"], properties: { name: roomName } },
+  RoomJoin: { type: "object", required: ["id", "name", "hostId"], additionalProperties: false, properties: { id: { type: "string" }, name: { type: "string" }, hostId: { type: "string", description: "uid del anfitrión (ownerUid de la sala)" } }, description: "Solo lo necesario para entrar; no incluye correos ni participantes." },
   DeletedRoom: { type: "object", required: ["id", "name", "deleted"], properties: { id: { type: "string" }, name: { type: "string" }, deleted: { type: "boolean", enum: [true] } } },
   Message: {
     type: "object", required: ["id", "uid", "username", "text", "createdAt"],
@@ -51,6 +52,15 @@ export const collaborationPaths = {
     put: roomUpdate("updateRoom", "Renombrar sala (solo anfitrión)"),
     patch: roomUpdate("patchRoom", "Renombrar sala (alias de PUT)", " Alias de PUT que se conserva por compatibilidad con el frontend."),
     delete: { tags: ["Salas"], operationId: "deleteRoom", summary: "Eliminar sala y sus mensajes (solo anfitrión)", description: routeSecurity + hostOnly + " Borra la sala y todos sus mensajes en lotes de Firestore, sin dejar huérfanos. El servidor de tiempo real emite room-deleted a los participantes conectados y los saca de la sala.", security: [{ bearerAuth: [] }], responses: { ...authErrors, "200": response("Sala eliminada", ref("DeletedRoom")), "403": forbidden, "404": error("ROOM_NOT_FOUND"), "500": error("Error interno") } },
+  },
+  "/api/v1/rooms/{roomId}/join": {
+    parameters: [{ ...roomId, description: "ID de la sala. Se recortan espacios en el servidor." }],
+    get: {
+      tags: ["Salas"], operationId: "joinRoom", summary: "Validar el ingreso a una sala por su ID (US-08)",
+      description: routeSecurity + " Comprueba que la sala existe antes de conectarse por Socket.IO (room:join). Solo lee: no añade participantes ni escribe en Firestore. Un ID vacío, solo con espacios o que no es un ID válido de Firestore (por ejemplo, con \"/\") responde igual que una sala inexistente. La sala no tiene campo de estado, así que solo se valida su existencia.",
+      security: [{ bearerAuth: [] }],
+      responses: { ...authErrors, "200": response("La sala existe y se puede entrar", ref("RoomJoin")), "404": { description: "ROOM_NOT_FOUND: sala inexistente o ID inválido", content: json({ ...ref("ApiError"), example: { error: { code: "ROOM_NOT_FOUND", message: "Sala no encontrada." } } }) }, "500": error("Error interno") },
+    },
   },
   "/api/v1/rooms/{roomId}/messages": {
     parameters: [roomId],

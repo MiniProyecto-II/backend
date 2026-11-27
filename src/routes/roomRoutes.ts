@@ -10,6 +10,13 @@ router.post("/", roomController.createRoom);
 // Consultar todas las salas
 router.get("/", roomController.getAllRooms);
 
+// Validar el ingreso a una sala por su ID (US-08 · SCRUM-353). Va antes de "/:roomId" por claridad:
+// ":roomId" nunca contiene "/", así que "/:roomId" no captura "/:roomId/join" ni "/:roomId/messages".
+router.get("/:roomId/join", roomController.joinRoom);
+// ID vacío (GET /rooms//join): ":roomId" no casa con una cadena vacía, así que sin esta ruta
+// Express respondería el 404 genérico de ruta inexistente en vez de «Sala no encontrada».
+router.get("//join", roomController.joinRoom);
+
 // Consultar una sala específica
 router.get("/:roomId", roomController.getRoomById);
 

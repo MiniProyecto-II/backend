@@ -55,6 +55,21 @@ export async function getRoomById(
   }
 }
 
+// Validar que se puede entrar a una sala por su ID (US-08). Solo lee; no escribe nada.
+export async function joinRoom(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    requesterUid(req);
+    const room = await roomService.getRoomForJoin(req.params.roomId);
+    res.status(200).json(room);
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Renombrar una sala (PUT y PATCH). Solo el anfitrión.
 export async function updateRoom(
   req: Request,

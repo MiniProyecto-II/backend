@@ -18,6 +18,14 @@ Room,
 
 export type UpdateRoomData = Partial<Pick<Room, "name">>;
 
+/** Respuesta de GET /api/v1/rooms/:roomId/join: solo lo necesario para entrar (sin correos ni participantes). */
+export interface RoomJoinInfo {
+    id: string;
+    name: string;
+    /** uid del anfitrión (ownerUid de la sala). */
+    hostId: string;
+}
+
 /** Respuesta de DELETE /api/v1/rooms/:roomId. */
 export interface DeletedRoom {
     id: string;

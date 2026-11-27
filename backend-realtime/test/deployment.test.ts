@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { swaggerSpec } from "../../src/docs/swagger";
 
-test("OpenAPI resuelve referencias y exige sesión en las once operaciones de salas y mensajes", () => {
+test("OpenAPI resuelve referencias y exige sesión en las doce operaciones de salas y mensajes", () => {
   const spec = swaggerSpec as any;
   const resolveReferences = (value: any): void => {
     if (!value || typeof value !== "object") return;
@@ -24,12 +24,12 @@ test("OpenAPI resuelve referencias y exige sesión en las once operaciones de sa
       operations++;
     }
   }
-  assert.equal(operations, 11);
+  assert.equal(operations, 12);
   assert.equal(spec["x-socketio"].url, "https://miniproyecto-realtime.onrender.com");
   assert.equal(spec["x-socketio"].auth.location, "handshake.auth.token");
 });
 
-test("HTTP real rechaza las once rutas sin token antes de ejecutar lógica de salas", async () => {
+test("HTTP real rechaza las doce rutas sin token antes de ejecutar lógica de salas", async () => {
   // El rechazo ocurre antes de Firebase: esta prueba no necesita credenciales externas.
   process.env.FIREBASE_PROJECT_ID ??= "qa-ci";
   process.env.FIREBASE_CLIENT_EMAIL ??= "qa-ci@example.com";
@@ -39,7 +39,7 @@ test("HTTP real rechaza las once rutas sin token antes de ejecutar lógica de sa
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
   const requests = [
     ["GET", "/api/v1/rooms"], ["POST", "/api/v1/rooms"],
-    ["GET", "/api/v1/rooms/qa"], ["PUT", "/api/v1/rooms/qa"], ["PATCH", "/api/v1/rooms/qa"], ["DELETE", "/api/v1/rooms/qa"],
+    ["GET", "/api/v1/rooms/qa"], ["GET", "/api/v1/rooms/qa/join"], ["PUT", "/api/v1/rooms/qa"], ["PATCH", "/api/v1/rooms/qa"], ["DELETE", "/api/v1/rooms/qa"],
     ["GET", "/api/v1/rooms/qa/messages"], ["POST", "/api/v1/rooms/qa/messages"],
     ["GET", "/api/v1/rooms/qa/messages/qa"], ["PATCH", "/api/v1/rooms/qa/messages/qa"], ["DELETE", "/api/v1/rooms/qa/messages/qa"],
   ];

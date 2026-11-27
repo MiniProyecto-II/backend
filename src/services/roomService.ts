@@ -5,6 +5,7 @@ import { AppError } from "../middlewares/AppError";
 import {
   DeletedRoom,
   Room,
+  RoomJoinInfo,
   ROOM_NAME_MAX_LENGTH
 } from "../models/room";
 
@@ -89,6 +90,37 @@ export async function getAllRooms() {
 /** Obtener una sala por ID. */
 export async function getRoomById(roomId: string) {
   return findRoomOrFail(validateRoomId(roomId));
+}
+
+/**
+ * ¿Es un ID utilizable como documento de Firestore? Firestore rechaza (con un error, que sería
+ * un 500) los IDs con "/", "." o "..", los de la forma __x__ y los de más de 1500 bytes.
+ */
+function isValidFirestoreId(id: string): boolean {
+  return !id.includes("/")
+    && id !== "."
+    && id !== ".."
+    && !/^__.*__$/.test(id)
+    && Buffer.byteLength(id, "utf8") <= 1500;
+}
+
+/**
+ * Valida que se pueda entrar a una sala por su ID (US-08 · BE-03). Solo lee: no añade al usuario
+ * como participante ni escribe en Firestore; la conexión real sigue siendo room:join por Socket.IO.
+ *
+ * Un ID vacío, solo con espacios o que no es un ID válido de Firestore responde lo mismo que una
+ * sala inexistente (404 ROOM_NOT_FOUND), para no dar pistas ni provocar un 500. La sala no tiene
+ * un campo de estado (abierta/cerrada), así que solo se valida que exista.
+ */
+export async function getRoomForJoin(roomId: unknown): Promise<RoomJoinInfo> {
+  const notFound = () => new AppError(404, "ROOM_NOT_FOUND", "Sala no encontrada.");
+  const id = typeof roomId === "string" ? roomId.trim() : "";
+  if (!id || !isValidFirestoreId(id)) throw notFound();
+
+  const room = await repo.getRoomById(id);
+  if (!room) throw notFound();
+
+  return { id: room.id, name: room.name, hostId: room.ownerUid };
 }
 
 /** Renombrar una sala. Orden: 404 sala inexistente → 403 no anfitrión → 400 nombre inválido. */
