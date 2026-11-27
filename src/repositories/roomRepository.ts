@@ -1,6 +1,6 @@
 
 import { getDb } from "../config/firebase";
-import { Timestamp } from "firebase-admin/firestore";
+import { DocumentReference, Firestore, Timestamp } from "firebase-admin/firestore";
 import {
   Room,
   CreateRoomData,
@@ -9,6 +9,10 @@ import {
 import { AppError } from "../middlewares/AppError";
 
 const COLLECTION_NAME = "rooms";
+const MESSAGES_COLLECTION = "messages";
+
+/** Máximo de operaciones que admite un WriteBatch de Firestore. */
+export const FIRESTORE_BATCH_LIMIT = 500;
 
 /** Crear una sala con ID automático generado en el backend. */
 export async function createRoom(
@@ -64,7 +68,7 @@ export async function getAllRooms(): Promise<Room[]> {
   } as Room));
 }
 
-/** Actualizar los datos permitidos de una sala. */
+/** Actualizar los datos permitidos de una sala (también actualiza updatedAt). */
 export async function updateRoom(
   roomId: string,
   data: UpdateRoomData
@@ -96,11 +100,47 @@ export async function updateRoom(
   } as Room;
 }
 
-/** Eliminar una sala. */
+/**
+ * Borra la sala y todos sus mensajes con WriteBatch (máximo 500 operaciones por lote).
+ *
+ * El primer lote incluye el documento de la sala: en cuanto se confirma, la transacción de
+ * createMessage ya no puede añadir mensajes, así que los lotes siguientes vacían una colección
+ * que no vuelve a crecer y no quedan mensajes huérfanos. Devuelve cuántos lotes se usaron.
+ */
+export async function deleteRoomWithMessages(
+  db: Pick<Firestore, "batch">,
+  roomRef: DocumentReference,
+  batchLimit = FIRESTORE_BATCH_LIMIT
+): Promise<number> {
+  const messages = roomRef.collection(MESSAGES_COLLECTION);
+  let includeRoom = true;
+  let pageSize = batchLimit - 1;
+  let batches = 0;
+
+  for (;;) {
+    const page = await messages.limit(pageSize).get();
+    if (!includeRoom && page.empty) break;
+
+    const batch = db.batch();
+    if (includeRoom) batch.delete(roomRef);
+    page.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    batches++;
+
+    if (page.size < pageSize) break;
+    includeRoom = false;
+    pageSize = batchLimit;
+  }
+
+  return batches;
+}
+
+/** Eliminar una sala junto con todos sus mensajes. Devuelve la sala tal como estaba. */
 export async function deleteRoom(
   roomId: string
-): Promise<void> {
-  const docRef = getDb()
+): Promise<Room> {
+  const db = getDb();
+  const docRef = db
     .collection(COLLECTION_NAME)
     .doc(roomId);
 
@@ -114,6 +154,7 @@ export async function deleteRoom(
     );
   }
 
-  // Eliminar mensajes antes de eliminar la sala.
-  await getDb().recursiveDelete(docRef);
+  const room = { id: snapshot.id, ...snapshot.data() } as Room;
+  await deleteRoomWithMessages(db, docRef);
+  return room;
 }
