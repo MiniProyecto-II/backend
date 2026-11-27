@@ -28,8 +28,27 @@ El cliente conecta con `io(URL_REALTIME, { auth: { token: firebaseIdToken } })`.
 | presence:update | Servidor a la sala | {roomId,users:[{uid,username,connections}],count}; count cuenta usuarios únicos |
 | realtime:error | Servidor al cliente | Resultado de error cuando no se proporciona callback de ack |
 | connect_error | Socket.IO al cliente | Error de autenticación; data.code UNAUTHORIZED |
+| room-updated | Servidor a la sala | {roomId,name}; el anfitrión cambió el nombre de la sala |
+| room-deleted | Servidor a la sala | {roomId,roomName}; el anfitrión eliminó la sala; después el servidor saca a los sockets de la sala |
 
 Los acknowledgements usan `{ok:true,data}` o `{ok:false,error:{code,message}}`. Códigos: INVALID_ROOM, ROOM_NOT_FOUND, NOT_IN_ROOM, INVALID_MESSAGE, UNAUTHORIZED, DISCONNECTED, BUSY, SERVICE_UNAVAILABLE. Una falla de escritura no emite message:new. Las operaciones de cada socket se serializan; se limita la cola a 32 y los paquetes a 32 KiB. La presencia agrupa pestañas de un mismo usuario y se limpia en desconexión.
+
+## Ciclo de vida de salas (SCRUM-258 · BE-02)
+
+La API REST y este servicio son procesos separados: la API no emite eventos. `src/roomWatcher.ts` escucha la colección `rooms` de Firestore con `onSnapshot` y avisa a los sockets de la sala afectada (canal `study-room:<roomId>`). No hay endpoints internos ni secretos compartidos.
+
+| Evento | Datos | Quién lo recibe | Cuándo |
+| --- | --- | --- | --- |
+| `room-updated` | `{ roomId: string, name: string }` | Los sockets unidos a esa sala | El anfitrión renombra la sala (`PUT` o `PATCH /api/v1/rooms/:roomId`). Si cambia otro campo, como `updatedAt`, no se emite. |
+| `room-deleted` | `{ roomId: string, roomName: string }` | Los sockets unidos a esa sala | El anfitrión elimina la sala (`DELETE /api/v1/rooms/:roomId`). `roomName` es el último nombre conocido. |
+
+Comportamiento:
+
+- **Al arrancar** se cargan en memoria los nombres actuales, sin emitir nada (el snapshot inicial se ignora).
+- **Tras `room-deleted`**, el servidor borra la presencia de la sala y saca a sus sockets del canal (`socketsLeave`). La conexión **no** se cierra, para que el cliente pueda volver al dashboard y seguir usando otras salas. Un `message:send` posterior a esa sala responde `NOT_IN_ROOM`.
+- **El cliente** debe escuchar `room-deleted`, avisar a la persona («La sala <roomName> fue eliminada por su anfitrión») y volver a `/salas`. Con `room-updated` solo actualiza el nombre en pantalla.
+- **Si la sala no tiene sockets**, no se emite nada y no falla.
+- **Si el listener se cae**, se reintenta con espera creciente (1 s, 2 s, 4 s… hasta 30 s). Cada caída deja un log `[room-watcher]` con el código del error y el número de reintento, nunca datos de las salas ni credenciales. Al recuperarse, compara el estado completo con lo conocido y emite los renombres o eliminaciones ocurridos durante la caída.
 
 ## Docker
 

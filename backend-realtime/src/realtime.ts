@@ -11,6 +11,8 @@ export interface Dependencies {
   getRoomById: typeof getRoomById;
   createMessage: typeof createMessage;
 }
+/** Canal de Socket.IO de cada sala. También lo usa roomWatcher para avisar de cambios en la sala. */
+export const roomChannel = (roomId: string) => `study-room:${roomId}`;
 class EventError extends Error {
   constructor(public code: string, message: string) { super(message); }
 }
@@ -23,7 +25,7 @@ export function createRealtimeServer(config: RealtimeConfig, deps: Dependencies)
     maxHttpBufferSize: 32768,
   });
   const presence = new Map<string, Map<string, Identity>>();
-  const channel = (id: string) => `study-room:${id}`;
+  const channel = roomChannel;
   const snapshot = (roomId: string) => {
     const users = new Map<string, { uid: string; username: string; connections: number }>();
     for (const user of presence.get(roomId)?.values() ?? []) {
@@ -37,6 +39,8 @@ export function createRealtimeServer(config: RealtimeConfig, deps: Dependencies)
   io.on("connection", socket => {
     const identity: Identity = socket.data.identity;
     const joined = new Set<string>();
+    // Visible para evictRoom: al eliminar una sala hay que olvidar la pertenencia de cada socket.
+    socket.data.joined = joined;
     let queue = Promise.resolve();
     let pending = 0;
     const timer = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(identity.expiresAt - Date.now(), 2147483647)));
@@ -105,5 +109,13 @@ export function createRealtimeServer(config: RealtimeConfig, deps: Dependencies)
       for (const id of [...joined]) remove(id);
     });
   });
-  return { http, io, close: () => new Promise<void>(resolve => io.close(() => resolve())) };
+  /**
+   * Olvida una sala eliminada: borra su presencia y la quita de las salas unidas de cada socket,
+   * para que no se pueda seguir enviando mensajes a ella. roomWatcher la llama antes de socketsLeave.
+   */
+  const evictRoom = (roomId: string) => {
+    presence.delete(roomId);
+    for (const socket of io.of("/").sockets.values()) (socket.data.joined as Set<string> | undefined)?.delete(roomId);
+  };
+  return { http, io, evictRoom, close: () => new Promise<void>(resolve => io.close(() => resolve())) };
 }

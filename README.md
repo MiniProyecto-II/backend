@@ -51,6 +51,10 @@ Swagger documenta las rutas HTTP reales de BE-01 y enlaza el servidor Socket.IO.
 
 Los documentos de entrega y resultados de QA se conservan fuera de Git. EVIDENCE_OUTPUT_DIR permite guardar resultados de integración en una ruta absoluta externa al repositorio.
 
+## Salas: permisos del anfitrión (SCRUM-258)
+
+`PUT /api/v1/rooms/:roomId` (y `PATCH` como alias) renombra y `DELETE /api/v1/rooms/:roomId` elimina la sala junto con todos sus mensajes, en lotes de Firestore. Solo el anfitrión puede hacerlo: el solicitante sale siempre del ID token y se ignoran `ownerUid` y `ownerUsername` del cuerpo, también al crear. Orden de respuesta: 401 sin token, 404 sala inexistente, 403 `NOT_ROOM_HOST`, 400 `INVALID_ROOM_NAME` (vacío o de más de 60 caracteres) y 200. `DELETE` responde 200 con `{ id, name, deleted: true }`. Los participantes conectados reciben `room-updated` o `room-deleted` desde el servicio realtime (ver backend-realtime/README.md).
+
 ## Perfil US 04
 
 `GET /api/v1/users/me` consulta el perfil; no se duplica con otro GET.

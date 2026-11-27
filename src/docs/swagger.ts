@@ -15,7 +15,8 @@ export const swaggerSpec = swaggerJsdoc({
       description: [
         "Identidad, salas y mensajes persistidos (BE-01 a BE-04, TS-02).",
         "**Tiempo real:** [https://miniproyecto-realtime.onrender.com](https://miniproyecto-realtime.onrender.com). Estado: [/health](https://miniproyecto-realtime.onrender.com/health).",
-        "Socket.IO v4 exige un ID token Firebase en `auth.token`; no usa la cabecera HTTP Authorization ni parámetros de URL. Eventos cliente: `room:join`, `room:leave`, `message:send`. Eventos servidor: `message:new`, `presence:update`, `realtime:error`.",
+        "Socket.IO v4 exige un ID token Firebase en `auth.token`; no usa la cabecera HTTP Authorization ni parámetros de URL. Eventos cliente: `room:join`, `room:leave`, `message:send`. Eventos servidor: `message:new`, `presence:update`, `realtime:error`, `room-updated`, `room-deleted`.",
+        "**Ciclo de vida de salas (SCRUM-258):** `room-updated` `{ roomId, name }` se emite a los sockets de la sala cuando el anfitrión la renombra. `room-deleted` `{ roomId, roomName }` se emite a los sockets de la sala cuando el anfitrión la elimina; después el servidor los saca de la sala y el cliente debe volver al dashboard. Ambos los produce backend-realtime escuchando la colección `rooms` de Firestore, sin endpoints internos.",
         "Los eventos Socket.IO no son endpoints REST y no se ejecutan con Try it out. Los endpoints HTTP de salas y mensajes se documentan según sus validaciones y seguridad actuales.",
       ].join("\n\n"),
     },
