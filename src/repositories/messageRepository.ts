@@ -128,6 +128,31 @@ export async function getMessagesAfter(
   return snapshot.docs.map((doc) => toMessage(roomId, doc.id, doc.data() as StoredMessage));
 }
 
+/**
+ * Página anterior a beforeId (historial, US-11): hasta `limit` mensajes inmediatamente anteriores,
+ * devueltos en orden ascendente. Consulta en orden descendente con cursor y luego invierte, sin
+ * traer toda la colección. Devuelve null si beforeId no existe en esa sala.
+ */
+export async function getMessagesBefore(
+  roomId: string,
+  beforeId: string,
+  limit: number
+): Promise<Message[] | null> {
+  const messages = getMessagesCollection(roomId);
+  const before = await messages.doc(beforeId).get();
+  if (!before.exists) return null;
+
+  const snapshot = await messages
+    .orderBy("createdAt", "desc")
+    .startAfter(before)
+    .limit(limit)
+    .get();
+
+  return snapshot.docs
+    .map((doc) => toMessage(roomId, doc.id, doc.data() as StoredMessage))
+    .reverse();
+}
+
 /** Últimos `limit` mensajes de la sala, devueltos en orden ascendente por createdAt. */
 export async function getLatestMessages(
   roomId: string,

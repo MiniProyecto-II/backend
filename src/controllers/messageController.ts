@@ -30,8 +30,10 @@ export async function getMessagesByRoom(
   next: NextFunction
 ) {
   try {
+    // Historial paginado: ?limit=1..100 (50 por defecto) y ?before=<messageId>. La lógica va en el service.
     const messages = await messageService.getMessagesByRoom(
-      String(req.params.roomId)
+      String(req.params.roomId),
+      req.query as Record<string, unknown>
     );
     res.status(200).json(messages);
   } catch (error) {

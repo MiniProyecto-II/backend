@@ -59,6 +59,10 @@ Los documentos de entrega y resultados de QA se conservan fuera de Git. EVIDENCE
 
 `GET /api/v1/rooms/:roomId/join` (Bearer ID token) valida que la sala existe antes de conectarse por Socket.IO (`room:join`). Responde 200 con `{ id, name, hostId }` (hostId = uid del anfitrión) y nada más. Recorta espacios del ID en el servidor; un ID vacío, solo con espacios, inexistente o que no es un ID válido de Firestore responde 404 `ROOM_NOT_FOUND` «Sala no encontrada.» (nunca 500). Solo lee: no añade participantes ni escribe en Firestore. Las salas no tienen campo de estado, así que solo se valida la existencia.
 
+## Historial del chat (US-11)
+
+`GET /api/v1/rooms/:roomId/messages` devuelve el historial paginado en orden cronológico ascendente: sin parámetros, los últimos 50; `?limit=1..100` cambia el tamaño de página y `?before=<messageId>` pide la página anterior a ese mensaje (si llegan menos que `limit`, no hay más). Respuestas: 400 `INVALID_LIMIT`/`INVALID_BEFORE`, 401, 404 `ROOM_NOT_FOUND` o `MESSAGE_NOT_FOUND`. Las salas no guardan membresía persistente, por eso no hay 403 por no ser miembro. Los mensajes de toda la API usan `createdAt` en ISO 8601. Eventos Socket.IO: [docs/EVENTOS_SOCKETIO.md](docs/EVENTOS_SOCKETIO.md).
+
 ## Mensajería instantánea (US-10)
 
 Los mensajes se guardan en `rooms/{roomId}/messages` con `roomId`, `userId`, `userName`, `text` y `createdAt` (hora del servidor de Firestore). `POST /api/v1/rooms/:roomId/messages` toma el autor del token y del perfil; los documentos antiguos con `uid`/`username` se leen en el mismo formato. El envío y la recepción en vivo (`send-message`, `new-message`, `join-room` con mensajes perdidos) están en backend-realtime/README.md.

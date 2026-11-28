@@ -4,7 +4,7 @@ import { createSocketAuthMiddleware } from "./auth";
 import type { RealtimeConfig } from "./config";
 import type { getRoomById } from "../../src/repositories/roomRepository";
 import type { createMessage, getLatestMessages, getMessagesAfter } from "../../src/repositories/messageRepository";
-import { MESSAGE_TEXT_MAX_LENGTH, type Message } from "../../src/models/message";
+import { MESSAGE_TEXT_MAX_LENGTH, toMessageResponse, type MessageResponse } from "../../src/models/message";
 
 export interface Identity { uid: string; username: string; expiresAt: number }
 export interface Dependencies {
@@ -20,6 +20,8 @@ export const EVENTS = {
   joinRoom: "join-room",
   sendMessage: "send-message",
   newMessage: "new-message",
+  participantJoined: "participant-joined",
+  participantLeft: "participant-left",
 } as const;
 const LEGACY_ALIASES = { [EVENTS.joinRoom]: "room:join", [EVENTS.sendMessage]: "message:send" } as const;
 
@@ -28,16 +30,12 @@ export const MISSED_AFTER_LIMIT = 200;
 /** Mensajes devueltos cuando no hay lastMessageId válido (los últimos de la sala). */
 export const MISSED_LATEST_LIMIT = 50;
 
-/** Payload de new-message y de cada elemento de missed. createdAt en ISO 8601 (hora del servidor de Firestore). */
-export interface MessagePayload { id: string; roomId: string; userId: string; userName: string; text: string; createdAt: string }
-export const toMessagePayload = (message: Message): MessagePayload => ({
-  id: message.id,
-  roomId: message.roomId,
-  userId: message.userId,
-  userName: message.userName,
-  text: message.text,
-  createdAt: message.createdAt.toDate().toISOString(),
-});
+/** Payload de new-message y de cada elemento de missed: el mismo formato que la API REST (createdAt ISO 8601). */
+export type MessagePayload = MessageResponse;
+export const toMessagePayload = toMessageResponse;
+
+/** Payload de participant-joined y participant-left. */
+export interface ParticipantPayload { roomId: string; userId: string; userName: string }
 
 /** Canal de Socket.IO de cada sala. También lo usa roomWatcher para avisar de cambios en la sala. */
 export const roomChannel = (roomId: string) => `study-room:${roomId}`;
@@ -94,11 +92,16 @@ export function createRealtimeServer(config: RealtimeConfig, deps: Dependencies)
     let pending = 0;
     const timer = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(identity.expiresAt - Date.now(), 2147483647)));
     timer.unref();
+    const participant = (roomId: string): ParticipantPayload => ({ roomId, userId: identity.uid, userName: identity.username });
+    /** ¿Este usuario tiene alguna conexión (pestaña) en la sala? */
+    const userPresent = (members: Map<string, Identity> | undefined) => [...(members?.values() ?? [])].some(m => m.uid === identity.uid);
+    // Sale de la sala (room:leave o desconexión). participant-left solo cuando se va su última conexión.
     const remove = (roomId: string) => {
       joined.delete(roomId);
       const members = presence.get(roomId);
-      members?.delete(socket.id);
+      const wasMember = members?.delete(socket.id) ?? false;
       if (!members?.size) presence.delete(roomId);
+      if (wasMember && !userPresent(members)) io.to(channel(roomId)).emit(EVENTS.participantLeft, participant(roomId));
       publish(roomId);
     };
     /** Registra un evento (y sus alias) con cola por socket, límite BUSY y ack { ok, data | error }. */
@@ -141,8 +144,11 @@ export function createRealtimeServer(config: RealtimeConfig, deps: Dependencies)
       if (!socket.connected) return;
       joined.add(id);
       const members = presence.get(id) ?? new Map();
+      // participant-joined solo si el usuario no estaba ya (repetir join-room u otra pestaña no lo duplica).
+      const wasPresent = userPresent(members);
       members.set(socket.id, identity);
       presence.set(id, members);
+      if (!wasPresent) io.to(channel(id)).emit(EVENTS.participantJoined, participant(id));
       publish(id);
       // Primero se une al canal y después se leen los perdidos: un mensaje que llegue en medio puede
       // venir en missed y también como new-message; el cliente descarta duplicados por id.

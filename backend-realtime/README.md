@@ -19,11 +19,15 @@ El cliente conecta con `io(URL_REALTIME, { auth: { token: firebaseIdToken } })`.
 
 ## Eventos
 
+> Documento completo de eventos (datos, ejemplos, quién los recibe, cuándo y errores): [docs/EVENTOS_SOCKETIO.md](../docs/EVENTOS_SOCKETIO.md).
+
 | Evento | Emisor | Datos |
 | --- | --- | --- |
 | join-room (alias room:join) | Cliente | {roomId,lastMessageId?}; ack con usuarios presentes y `missed` (ver «Mensajería») |
 | room:leave | Cliente | {roomId}; ack de salida idempotente |
 | send-message (alias message:send) | Cliente | {roomId,text}; ver «Mensajería» |
+| participant-joined | Servidor a la sala | {roomId,userId,userName}; un usuario que no estaba entra (no se repite al reentrar ni con otra pestaña) |
+| participant-left | Servidor a la sala | {roomId,userId,userName}; se va la última conexión del usuario (room:leave o desconexión) |
 | new-message | Servidor a la sala | {id,roomId,userId,userName,text,createdAt}; createdAt ISO 8601 de Firestore; incluye al emisor; solo después de guardar |
 | presence:update | Servidor a la sala | {roomId,users:[{uid,username,connections}],count}; count cuenta usuarios únicos |
 | realtime:error | Servidor al cliente | Resultado de error cuando no se proporciona callback de ack |

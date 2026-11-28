@@ -2,6 +2,7 @@
 import * as roomRepoModule from "../repositories/roomRepository";
 import * as userRepoModule from "../repositories/userRepository";
 import { AppError } from "../middlewares/AppError";
+import { isValidFirestoreId } from "../utils/firestoreId";
 import {
   DeletedRoom,
   Room,
@@ -90,18 +91,6 @@ export async function getAllRooms() {
 /** Obtener una sala por ID. */
 export async function getRoomById(roomId: string) {
   return findRoomOrFail(validateRoomId(roomId));
-}
-
-/**
- * ¿Es un ID utilizable como documento de Firestore? Firestore rechaza (con un error, que sería
- * un 500) los IDs con "/", "." o "..", los de la forma __x__ y los de más de 1500 bytes.
- */
-function isValidFirestoreId(id: string): boolean {
-  return !id.includes("/")
-    && id !== "."
-    && id !== ".."
-    && !/^__.*__$/.test(id)
-    && Buffer.byteLength(id, "utf8") <= 1500;
 }
 
 /**

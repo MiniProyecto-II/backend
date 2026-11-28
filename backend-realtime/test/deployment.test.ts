@@ -55,3 +55,13 @@ test("HTTP real rechaza las doce rutas sin token antes de ejecutar lógica de sa
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
+
+test("el servicio realtime exige credenciales de Firebase al arrancar, con un mensaje claro", async () => {
+  const { assertFirebaseCredentials } = await import("../src/firebase");
+  const completas = { FIREBASE_PROJECT_ID: "p", FIREBASE_CLIENT_EMAIL: "c@p.iam.gserviceaccount.com", FIREBASE_PRIVATE_KEY: "k" };
+  assert.doesNotThrow(() => assertFirebaseCredentials(completas));
+  assert.doesNotThrow(() => assertFirebaseCredentials({ GOOGLE_APPLICATION_CREDENTIALS: __filename }));
+  for (const env of [{}, { FIREBASE_PROJECT_ID: "p", FIREBASE_CLIENT_EMAIL: "c" }, { GOOGLE_APPLICATION_CREDENTIALS: "/no/existe.json" }]) {
+    assert.throws(() => assertFirebaseCredentials(env), /Faltan credenciales de Firebase/);
+  }
+});

@@ -19,12 +19,30 @@ export const productionDependencies: Dependencies = {
   getLatestMessages,
 };
 
-/** Cambios de la colección rooms de Firestore para roomWatcher (onSnapshot). */
-export const firestoreRoomChanges: RoomChangeSource = (onChanges, onError) =>
-  getDb().collection("rooms").onSnapshot(
-    snapshot => onChanges(snapshot.docChanges().map(change => {
-      const name: unknown = change.doc.get("name");
-      return { type: change.type, roomId: change.doc.id, name: typeof name === "string" ? name : undefined };
-    })),
-    onError
+/**
+ * Cambios de la colección rooms de Firestore para roomWatcher (onSnapshot).
+ *
+ * Antes de abrir el listener se hace una lectura mínima: si las credenciales o la red fallan,
+ * ese error sí se puede capturar y llega a onError (roomWatcher reintenta y deja un log). Sin esta
+ * comprobación, con credenciales por defecto ausentes el SDK lanza una promesa no capturada al
+ * abrir onSnapshot y el proceso entero se cae.
+ */
+export const firestoreRoomChanges: RoomChangeSource = (onChanges, onError) => {
+  const rooms = getDb().collection("rooms");
+  let cancelled = false;
+  let unsubscribe = () => {};
+  rooms.limit(1).get().then(
+    () => {
+      if (cancelled) return;
+      unsubscribe = rooms.onSnapshot(
+        snapshot => onChanges(snapshot.docChanges().map(change => {
+          const name: unknown = change.doc.get("name");
+          return { type: change.type, roomId: change.doc.id, name: typeof name === "string" ? name : undefined };
+        })),
+        onError
+      );
+    },
+    error => { if (!cancelled) onError(error); }
   );
+  return () => { cancelled = true; unsubscribe(); };
+};
