@@ -12,6 +12,9 @@ declare global {
   }
 }
 
+// Objeto mutable para que las pruebas puedan simular Firebase (mismo patrón que profileDependencies).
+export const authDependencies = { verifyFirebaseIdToken };
+
 /**
  * Verifica el token JWT de Firebase enviado en el header:
  * Authorization: Bearer <token>
@@ -42,7 +45,7 @@ export async function requireAuth(
       );
     }
 
-    const decodedToken = await verifyFirebaseIdToken(token);
+    const decodedToken = await authDependencies.verifyFirebaseIdToken(token);
     req.user = decodedToken;
     next();
   } catch (err) {
