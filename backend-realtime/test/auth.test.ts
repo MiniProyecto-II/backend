@@ -56,6 +56,8 @@ test("handshake real exige auth.token y conserva identidad verificada", async t 
     },
     getRoomById: async () => { throw Error("No debe consultar salas en handshake"); },
     createMessage: async () => { throw Error("No debe escribir mensajes en handshake"); },
+    getMessagesAfter: async () => { throw Error("No debe leer mensajes en handshake"); },
+    getLatestMessages: async () => { throw Error("No debe leer mensajes en handshake"); },
   });
   await new Promise<void>(resolve => server.http.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.http.address() as any).port}`;
