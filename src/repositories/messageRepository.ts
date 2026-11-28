@@ -1,9 +1,10 @@
 
 import { getDb } from "../config/firebase";
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
   Message,
   CreateMessageData,
+  StoredMessage,
   UpdateMessageData
 } from "../models/message";
 import { AppError } from "../middlewares/AppError";
@@ -19,7 +20,36 @@ function getMessagesCollection(roomId: string) {
     .collection(MESSAGES_COLLECTION);
 }
 
-/** Crear un mensaje dentro de una sala existente. */
+/**
+ * Convierte un documento guardado al formato de Message. Los mensajes anteriores a US-10
+ * (uid/username, sin roomId) se leen como userId/userName, sin migrar los datos.
+ */
+export function toMessage(roomId: string, id: string, data: StoredMessage | undefined): Message {
+  return {
+    id,
+    roomId: data?.roomId ?? roomId,
+    userId: data?.userId ?? data?.uid ?? "",
+    userName: data?.userName ?? data?.username ?? "",
+    text: data?.text ?? "",
+    createdAt: data?.createdAt as Timestamp
+  };
+}
+
+/** Datos que se guardan al crear un mensaje: la hora la pone el servidor de Firestore. */
+export function newMessageDocument(roomId: string, data: CreateMessageData) {
+  return {
+    roomId,
+    userId: data.userId,
+    userName: data.userName,
+    text: data.text,
+    createdAt: FieldValue.serverTimestamp()
+  };
+}
+
+/**
+ * Crear un mensaje dentro de una sala existente. Devuelve el documento ya guardado,
+ * con el id real y el createdAt que asignó el servidor de Firestore.
+ */
 export async function createMessage(
   roomId: string,
   data: CreateMessageData
@@ -29,13 +59,6 @@ export async function createMessage(
     .doc(roomId);
 
   const messageRef = getMessagesCollection(roomId).doc();
-  const now = Timestamp.now();
-
-  const message: Message = {
-    id: messageRef.id,
-    ...data,
-    createdAt: now
-  };
 
   // La transacción impide crear mensajes en salas eliminadas.
   await getDb().runTransaction(async (transaction) => {
@@ -49,15 +72,12 @@ export async function createMessage(
       );
     }
 
-    transaction.set(messageRef, {
-      uid: message.uid,
-      username: message.username,
-      text: message.text,
-      createdAt: message.createdAt
-    });
+    transaction.set(messageRef, newMessageDocument(roomId, data));
   });
 
-  return message;
+  // Se relee para devolver la hora real del servidor (serverTimestamp no tiene valor en el cliente).
+  const saved = await messageRef.get();
+  return toMessage(roomId, saved.id, saved.data() as StoredMessage);
 }
 
 /** Consultar un mensaje por ID. */
@@ -71,10 +91,7 @@ export async function getMessageById(
 
   if (!snapshot.exists) return null;
 
-  return {
-    id: snapshot.id,
-    ...snapshot.data()
-  } as Message;
+  return toMessage(roomId, snapshot.id, snapshot.data() as StoredMessage);
 }
 
 /** Consultar los mensajes de una sala cronológicamente. */
@@ -85,10 +102,70 @@ export async function getMessagesByRoom(
     .orderBy("createdAt", "asc")
     .get();
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data()
-  } as Message));
+  return snapshot.docs.map((doc) => toMessage(roomId, doc.id, doc.data() as StoredMessage));
+}
+
+/**
+ * Mensajes de la sala posteriores a lastMessageId, en orden ascendente por createdAt (como mucho
+ * `limit`). Devuelve null si lastMessageId no existe en esa sala, para que quien llama decida.
+ * startAfter(documento) también resuelve empates de createdAt usando el ID del documento.
+ */
+export async function getMessagesAfter(
+  roomId: string,
+  lastMessageId: string,
+  limit: number
+): Promise<Message[] | null> {
+  const messages = getMessagesCollection(roomId);
+  const last = await messages.doc(lastMessageId).get();
+  if (!last.exists) return null;
+
+  const snapshot = await messages
+    .orderBy("createdAt", "asc")
+    .startAfter(last)
+    .limit(limit)
+    .get();
+
+  return snapshot.docs.map((doc) => toMessage(roomId, doc.id, doc.data() as StoredMessage));
+}
+
+/**
+ * Página anterior a beforeId (historial, US-11): hasta `limit` mensajes inmediatamente anteriores,
+ * devueltos en orden ascendente. Consulta en orden descendente con cursor y luego invierte, sin
+ * traer toda la colección. Devuelve null si beforeId no existe en esa sala.
+ */
+export async function getMessagesBefore(
+  roomId: string,
+  beforeId: string,
+  limit: number
+): Promise<Message[] | null> {
+  const messages = getMessagesCollection(roomId);
+  const before = await messages.doc(beforeId).get();
+  if (!before.exists) return null;
+
+  const snapshot = await messages
+    .orderBy("createdAt", "desc")
+    .startAfter(before)
+    .limit(limit)
+    .get();
+
+  return snapshot.docs
+    .map((doc) => toMessage(roomId, doc.id, doc.data() as StoredMessage))
+    .reverse();
+}
+
+/** Últimos `limit` mensajes de la sala, devueltos en orden ascendente por createdAt. */
+export async function getLatestMessages(
+  roomId: string,
+  limit: number
+): Promise<Message[]> {
+  const snapshot = await getMessagesCollection(roomId)
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+
+  return snapshot.docs
+    .map((doc) => toMessage(roomId, doc.id, doc.data() as StoredMessage))
+    .reverse();
 }
 
 /** Actualizar el texto de un mensaje. */
@@ -114,10 +191,7 @@ export async function updateMessage(
 
   const updated = await messageRef.get();
 
-  return {
-    id: updated.id,
-    ...updated.data()
-  } as Message;
+  return toMessage(roomId, updated.id, updated.data() as StoredMessage);
 }
 
 /** Eliminar un mensaje de una sala. */

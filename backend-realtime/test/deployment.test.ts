@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { swaggerSpec } from "../../src/docs/swagger";
 
-test("OpenAPI resuelve referencias y exige sesión en las diez operaciones de salas y mensajes", () => {
+test("OpenAPI resuelve referencias y exige sesión en las doce operaciones de salas y mensajes", () => {
   const spec = swaggerSpec as any;
   const resolveReferences = (value: any): void => {
     if (!value || typeof value !== "object") return;
@@ -17,19 +17,19 @@ test("OpenAPI resuelve referencias y exige sesión en las diez operaciones de sa
   let operations = 0;
   for (const [path, item] of Object.entries(spec.paths) as any) {
     if (!path.startsWith("/api/v1/rooms")) continue;
-    for (const method of ["get", "post", "patch", "delete"]) {
+    for (const method of ["get", "post", "put", "patch", "delete"]) {
       if (!item[method]) continue;
       assert.deepEqual(item[method].security, [{ bearerAuth: [] }]);
       assert.ok(item[method].responses["401"]);
       operations++;
     }
   }
-  assert.equal(operations, 10);
+  assert.equal(operations, 12);
   assert.equal(spec["x-socketio"].url, "https://miniproyecto-realtime.onrender.com");
   assert.equal(spec["x-socketio"].auth.location, "handshake.auth.token");
 });
 
-test("HTTP real rechaza las diez rutas sin token antes de ejecutar lógica de salas", async () => {
+test("HTTP real rechaza las doce rutas sin token antes de ejecutar lógica de salas", async () => {
   // El rechazo ocurre antes de Firebase: esta prueba no necesita credenciales externas.
   process.env.FIREBASE_PROJECT_ID ??= "qa-ci";
   process.env.FIREBASE_CLIENT_EMAIL ??= "qa-ci@example.com";
@@ -39,7 +39,7 @@ test("HTTP real rechaza las diez rutas sin token antes de ejecutar lógica de sa
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
   const requests = [
     ["GET", "/api/v1/rooms"], ["POST", "/api/v1/rooms"],
-    ["GET", "/api/v1/rooms/qa"], ["PATCH", "/api/v1/rooms/qa"], ["DELETE", "/api/v1/rooms/qa"],
+    ["GET", "/api/v1/rooms/qa"], ["GET", "/api/v1/rooms/qa/join"], ["PUT", "/api/v1/rooms/qa"], ["PATCH", "/api/v1/rooms/qa"], ["DELETE", "/api/v1/rooms/qa"],
     ["GET", "/api/v1/rooms/qa/messages"], ["POST", "/api/v1/rooms/qa/messages"],
     ["GET", "/api/v1/rooms/qa/messages/qa"], ["PATCH", "/api/v1/rooms/qa/messages/qa"], ["DELETE", "/api/v1/rooms/qa/messages/qa"],
   ];
@@ -53,5 +53,15 @@ test("HTTP real rechaza las diez rutas sin token antes de ejecutar lógica de sa
     assert.equal((await fetch(base + "/health")).status, 200);
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
+
+test("el servicio realtime exige credenciales de Firebase al arrancar, con un mensaje claro", async () => {
+  const { assertFirebaseCredentials } = await import("../src/firebase");
+  const completas = { FIREBASE_PROJECT_ID: "p", FIREBASE_CLIENT_EMAIL: "c@p.iam.gserviceaccount.com", FIREBASE_PRIVATE_KEY: "k" };
+  assert.doesNotThrow(() => assertFirebaseCredentials(completas));
+  assert.doesNotThrow(() => assertFirebaseCredentials({ GOOGLE_APPLICATION_CREDENTIALS: __filename }));
+  for (const env of [{}, { FIREBASE_PROJECT_ID: "p", FIREBASE_CLIENT_EMAIL: "c" }, { GOOGLE_APPLICATION_CREDENTIALS: "/no/existe.json" }]) {
+    assert.throws(() => assertFirebaseCredentials(env), /Faltan credenciales de Firebase/);
   }
 });

@@ -1,6 +1,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import * as messageService from "../services/messageService";
+import { AppError } from "../middlewares/AppError";
 
 export async function createMessage(
   req: Request,
@@ -8,7 +9,12 @@ export async function createMessage(
   next: NextFunction
 ) {
   try {
+    if (!req.user?.uid) {
+      throw new AppError(401, "UNAUTHORIZED", "No autorizado.");
+    }
+    // El autor sale del token y del perfil, nunca del cuerpo.
     const message = await messageService.createMessage(
+      req.user.uid,
       String(req.params.roomId),
       req.body
     );
@@ -24,8 +30,10 @@ export async function getMessagesByRoom(
   next: NextFunction
 ) {
   try {
+    // Historial paginado: ?limit=1..100 (50 por defecto) y ?before=<messageId>. La lógica va en el service.
     const messages = await messageService.getMessagesByRoom(
-      String(req.params.roomId)
+      String(req.params.roomId),
+      req.query as Record<string, unknown>
     );
     res.status(200).json(messages);
   } catch (error) {
