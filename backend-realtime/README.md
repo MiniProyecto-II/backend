@@ -21,17 +21,55 @@ El cliente conecta con `io(URL_REALTIME, { auth: { token: firebaseIdToken } })`.
 
 | Evento | Emisor | Datos |
 | --- | --- | --- |
-| room:join | Cliente | {roomId}; ack con usuarios presentes o error |
+| join-room (alias room:join) | Cliente | {roomId,lastMessageId?}; ack con usuarios presentes y `missed` (ver «Mensajería») |
 | room:leave | Cliente | {roomId}; ack de salida idempotente |
-| message:send | Cliente | {roomId,text}; exige pertenencia; texto recortado de 1 a 4000 caracteres |
-| message:new | Servidor a la sala | {roomId,id,uid,username,text,createdAt}; fecha ISO UTC; incluye al emisor después de guardar |
+| send-message (alias message:send) | Cliente | {roomId,text}; ver «Mensajería» |
+| new-message | Servidor a la sala | {id,roomId,userId,userName,text,createdAt}; createdAt ISO 8601 de Firestore; incluye al emisor; solo después de guardar |
 | presence:update | Servidor a la sala | {roomId,users:[{uid,username,connections}],count}; count cuenta usuarios únicos |
 | realtime:error | Servidor al cliente | Resultado de error cuando no se proporciona callback de ack |
 | connect_error | Socket.IO al cliente | Error de autenticación; data.code UNAUTHORIZED |
 | room-updated | Servidor a la sala | {roomId,name}; el anfitrión cambió el nombre de la sala |
 | room-deleted | Servidor a la sala | {roomId,roomName}; el anfitrión eliminó la sala; después el servidor saca a los sockets de la sala |
 
-Los acknowledgements usan `{ok:true,data}` o `{ok:false,error:{code,message}}`. Códigos: INVALID_ROOM, ROOM_NOT_FOUND, NOT_IN_ROOM, INVALID_MESSAGE, UNAUTHORIZED, DISCONNECTED, BUSY, SERVICE_UNAVAILABLE. Una falla de escritura no emite message:new. Las operaciones de cada socket se serializan; se limita la cola a 32 y los paquetes a 32 KiB. La presencia agrupa pestañas de un mismo usuario y se limpia en desconexión.
+Los acknowledgements usan `{ok:true,data}` o `{ok:false,error:{code,message}}`. Códigos: INVALID_ROOM, ROOM_NOT_FOUND, NOT_IN_ROOM, INVALID_MESSAGE, UNAUTHORIZED, DISCONNECTED, BUSY, SERVICE_UNAVAILABLE. Una falla de escritura no emite new-message. Las operaciones de cada socket se serializan; se limita la cola a 32 y los paquetes a 32 KiB. La presencia agrupa pestañas de un mismo usuario y se limpia en desconexión.
+
+## Mensajería (US-10 · BE-05, BE-06 y BE-09)
+
+Los nombres oficiales son `join-room`, `send-message` y `new-message`. Los eventos anteriores `room:join` y `message:send` siguen aceptándose como alias de entrada (mismo handler). Hacia el cliente solo se emite `new-message`; `message:new` ya no existe.
+
+| Evento | Quién lo envía / recibe | Datos | Ack | Errores |
+| --- | --- | --- | --- | --- |
+| `send-message` | Cliente → servidor | `{ roomId, text }` | `{ ok: true, data: <new-message> }` | `INVALID_ROOM`, `ROOM_NOT_FOUND`, `NOT_IN_ROOM`, `INVALID_MESSAGE`, `UNAUTHORIZED`, `BUSY`, `SERVICE_UNAVAILABLE` |
+| `new-message` | Servidor → sockets de esa sala (canal `study-room:<roomId>`), incluido el emisor | `{ id, roomId, userId, userName, text, createdAt }` | — | — |
+| `join-room` | Cliente → servidor | `{ roomId, lastMessageId? }` | `{ ok: true, data: { roomId, users, count, missed: [<new-message>…] } }` | `INVALID_ROOM`, `ROOM_NOT_FOUND`, `DISCONNECTED`, `UNAUTHORIZED`, `BUSY`, `SERVICE_UNAVAILABLE` |
+
+**send-message:**
+- **Orden de validación:** sesión del handshake → sala existente (`ROOM_NOT_FOUND`) → el socket ya entró a esa sala (`NOT_IN_ROOM`; también si el `roomId` es de otra sala) → texto con trim, no vacío y de máximo 4000 caracteres (`INVALID_MESSAGE`).
+- **Persistencia:** el mensaje se guarda en Firestore desde el servidor, en `rooms/{roomId}/messages`, con `roomId`, `userId` (uid del token), `userName` (username del perfil, nunca del cliente), `text` recortado y `createdAt` = `FieldValue.serverTimestamp()`.
+- **Emisión:** solo si el guardado fue exitoso se emite `new-message` con el `id` del documento y el `createdAt` real leído tras guardar. Si Firestore falla, no se emite nada y el ack devuelve `SERVICE_UNAVAILABLE`.
+- **Mensajes antiguos:** los guardados antes de US-10 con `uid`/`username` se devuelven en el mismo formato.
+
+**join-room y reconexión:**
+- Al volver tras perder la conexión, el cliente se reconecta con un `auth.token` renovado y vuelve a emitir `join-room { roomId, lastMessageId }` con el id del último mensaje que recibió.
+- El servidor lo une de nuevo al canal y devuelve `missed`:
+  - **Con `lastMessageId` de esa sala:** los mensajes posteriores, en orden ascendente por `createdAt`, como mucho 200.
+  - **Sin él, o si no existe o es de otra sala:** los últimos 50, en orden ascendente. Nunca falla solo por eso.
+- Volver a entrar a una sala en la que ya estaba no duplica la presencia.
+- Un mensaje que llegue justo durante el `join-room` puede venir en `missed` y también como `new-message`: el cliente descarta duplicados por `id`.
+
+Ejemplo de cliente:
+
+```js
+const socket = io(URL_REALTIME, { auth: async cb => cb({ token: await user.getIdToken() }) }); // token renovado en cada reconexión
+let lastMessageId;
+socket.on("connect", async () => {
+  const { ok, data } = await socket.emitWithAck("join-room", { roomId, lastMessageId });
+  if (ok) data.missed.forEach(pintarSiNoExiste);
+});
+socket.on("new-message", m => { lastMessageId = m.id; pintarSiNoExiste(m); });
+const r = await socket.emitWithAck("send-message", { roomId, text });
+if (!r.ok) mostrarError(r.error.message);
+```
 
 ## Ciclo de vida de salas (SCRUM-258 · BE-02)
 

@@ -43,12 +43,15 @@ test("Firestore real con tres clientes y repositorios BE01", { skip: process.env
       await new Promise<void>((resolve, reject) => { s.once("connect", resolve); s.once("connect_error", reject); });
       assert.equal((await ack(s, "room:join", { roomId: rooms[n === 2 ? 1 : 0] })).ok, true);
     }
-    const received: any[][] = [[],[],[]]; clients.forEach((s,n) => s.on("message:new", x => received[n].push(x)));
+    const received: any[][] = [[],[],[]]; clients.forEach((s,n) => s.on("new-message", x => received[n].push(x)));
     const result = await ack(clients[0], "message:send", { roomId: rooms[0], text: "Evidencia sintética BE02" });
     assert.equal(result.ok, true); await new Promise(r => setTimeout(r, 150));
     assert.equal(received[0].length, 1); assert.equal(received[1].length, 1); assert.equal(received[2].length, 0);
     const stored = await getMessageById(rooms[0], result.data.id);
     assert.equal(stored?.text, "Evidencia sintética BE02");
+    // BE-06: autor desde el servidor, roomId en el documento, createdAt de Firestore y el mismo id que new-message.
+    assert.equal(stored?.roomId, rooms[0]); assert.equal(stored?.userId, received[0][0].userId); assert.ok(stored?.userName);
+    assert.equal(received[0][0].id, result.data.id); assert.equal(received[0][0].createdAt, stored?.createdAt.toDate().toISOString());
     evidence.cases.push({ id: "RT01", result: "PASS", description: "Dos clientes de la misma sala reciben el mensaje" }, { id: "RT02", result: "PASS", description: "Otra sala no recibe el mensaje" }, { id: "RT03", result: "PASS", description: "Mensaje consultado en Firestore con repositorio BE01", messageId: result.data.id });
     assert.equal((await ack(clients[0], "room:join", { roomId: `missing-${uid}` })).error.code, "ROOM_NOT_FOUND");
     evidence.cases.push({ id: "RT04", result: "PASS", description: "Sala inexistente bloqueada" });

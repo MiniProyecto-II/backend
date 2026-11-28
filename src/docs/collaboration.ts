@@ -34,9 +34,10 @@ export const collaborationSchemas = {
   DeletedRoom: { type: "object", required: ["id", "name", "deleted"], properties: { id: { type: "string" }, name: { type: "string" }, deleted: { type: "boolean", enum: [true] } } },
   Message: {
     type: "object", required: ["id", "uid", "username", "text", "createdAt"],
-    properties: { id: { type: "string" }, uid: text, username: text, text, createdAt: ref("FirestoreTimestamp") },
+    properties: { id: { type: "string" }, roomId: { type: "string" }, userId: { type: "string", description: "uid del autor (del token)" }, userName: { type: "string", description: "username del perfil del autor" }, text, createdAt: ref("FirestoreTimestamp") },
+    description: "Los mensajes anteriores a US-10 (guardados con uid/username) se devuelven en este mismo formato.",
   },
-  CreateMessage: { type: "object", required: ["uid", "username", "text"], properties: { uid: text, username: text, text } },
+  CreateMessage: { type: "object", required: ["text"], properties: { text: { ...text, maxLength: 4000 } }, description: "El autor sale del token (userId) y del perfil (userName); se ignoran uid, username, userId y userName del cuerpo." },
   UpdateMessage: { type: "object", required: ["text"], properties: { text } },
   ApiError: { type: "object", required: ["error"], properties: { error: { type: "object", required: ["code", "message"], properties: { code: { type: "string" }, message: { type: "string" } } } } },
 };
@@ -65,7 +66,7 @@ export const collaborationPaths = {
   "/api/v1/rooms/{roomId}/messages": {
     parameters: [roomId],
     get: { tags: ["Mensajes"], operationId: "listMessages", summary: "Listar mensajes de una sala", description: routeSecurity + " Se ordenan por createdAt ascendente. Una sala sin mensajes, incluso inexistente, devuelve [].", security: [{ bearerAuth: [] }], responses: { ...authErrors, "200": response("Lista cronológica", { type: "array", items: ref("Message") }), "500": error("Error interno") } },
-    post: { tags: ["Mensajes"], operationId: "createMessage", summary: "Crear mensaje persistido por HTTP", description: routeSecurity + " Esta ruta guarda el mensaje; la emisión en vivo la realiza message:send de Socket.IO.", security: [{ bearerAuth: [] }], requestBody: body("CreateMessage"), responses: { ...authErrors, "201": response("Mensaje creado", ref("Message")), "400": error("Autor o texto inválidos"), "404": error("ROOM_NOT_FOUND"), "500": error("Error interno") } },
+    post: { tags: ["Mensajes"], operationId: "createMessage", summary: "Crear mensaje persistido por HTTP", description: routeSecurity + " Esta ruta guarda el mensaje (createdAt con la hora del servidor de Firestore) pero no lo emite en vivo; para eso se usa send-message de Socket.IO.", security: [{ bearerAuth: [] }], requestBody: body("CreateMessage"), responses: { ...authErrors, "201": response("Mensaje creado", ref("Message")), "400": error("INVALID_MESSAGE_DATA: texto vacío o de más de 4000 caracteres"), "403": error("PROFILE_INCOMPLETE: el usuario no tiene perfil con username"), "404": error("ROOM_NOT_FOUND"), "500": error("Error interno") } },
   },
   "/api/v1/rooms/{roomId}/messages/{messageId}": {
     parameters: [roomId, messageId],
@@ -79,8 +80,15 @@ export const realtimeContract = {
   url: "https://miniproyecto-realtime.onrender.com",
   health: "/health", socketIoPath: "/socket.io/", protocol: "Socket.IO v4",
   auth: { location: "handshake.auth.token", type: "Firebase ID token", error: "connect_error: UNAUTHORIZED" },
-  clientEvents: { "room:join": { roomId: "string" }, "room:leave": { roomId: "string" }, "message:send": { roomId: "string", text: "string (1..4000 caracteres después de trim)" } },
-  serverEvents: ["message:new", "presence:update", "realtime:error", "room-updated", "room-deleted"],
+  clientEvents: {
+    "join-room": { payload: { roomId: "string", lastMessageId: "string (opcional)" }, alias: "room:join", ack: "{ ok: true, data: { roomId, users: [{ uid, username, connections }], count, missed: [new-message...] } }", missed: "Con lastMessageId de esa sala: mensajes posteriores en orden ascendente (máx. 200). Sin él, inexistente o de otra sala: los últimos 50. Entrar de nuevo no duplica la presencia.", errors: ["INVALID_ROOM", "ROOM_NOT_FOUND", "DISCONNECTED", "UNAUTHORIZED", "BUSY", "SERVICE_UNAVAILABLE"] },
+    "send-message": { payload: { roomId: "string", text: "string (1..4000 caracteres después de trim)" }, alias: "message:send", ack: "{ ok: true, data: new-message }", order: "sesión → sala existe (ROOM_NOT_FOUND) → socket unido a esa sala (NOT_IN_ROOM) → texto (INVALID_MESSAGE)", errors: ["INVALID_ROOM", "ROOM_NOT_FOUND", "NOT_IN_ROOM", "INVALID_MESSAGE", "UNAUTHORIZED", "BUSY", "SERVICE_UNAVAILABLE"] },
+    "room:leave": { payload: { roomId: "string" } },
+  },
+  serverEvents: ["new-message", "presence:update", "realtime:error", "room-updated", "room-deleted"],
+  messageEvents: {
+    "new-message": { payload: { id: "string (id del documento en Firestore)", roomId: "string", userId: "string (uid del token)", userName: "string (username del perfil)", text: "string", createdAt: "string ISO 8601 (hora del servidor de Firestore)" }, recipients: "Solo los sockets de esa sala (canal study-room:<roomId>), incluido el emisor", when: "Después de guardar el mensaje en Firestore. Si el guardado falla no se emite. El cliente descarta duplicados por id." },
+  },
   roomLifecycleEvents: {
     "room-updated": { payload: { roomId: "string", name: "string" }, recipients: "Sockets unidos a la sala (canal study-room:<roomId>)", when: "Cuando el anfitrión cambia el nombre (PUT o PATCH /api/v1/rooms/{roomId}). Si cambia otro campo, no se emite." },
     "room-deleted": { payload: { roomId: "string", roomName: "string" }, recipients: "Sockets unidos a la sala (canal study-room:<roomId>)", when: "Cuando el anfitrión elimina la sala (DELETE /api/v1/rooms/{roomId}). Después del aviso, el servidor saca a esos sockets de la sala; el cliente debe volver al dashboard." },

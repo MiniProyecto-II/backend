@@ -13,7 +13,9 @@ test("contrato real Socket.IO: salas, persistencia, errores, identidad y presenc
   const deps: Dependencies = {
     async authenticate(token) { if (token === "invalid") throw Error(); return { uid: token, username: `user-${token}`, expiresAt: Date.now() + 60000 }; },
     async getRoomById(id) { return ["a", "b"].includes(id) ? { id } as any : null; },
-    async createMessage(roomId, data) { if (fail) throw Error("database down"); const result = { id: String(saved.length), ...data, createdAt: Timestamp.now() }; saved.push({ roomId, ...result }); return result; },
+    async createMessage(roomId, data) { if (fail) throw Error("database down"); const result = { id: String(saved.length), roomId, ...data, createdAt: Timestamp.now() }; saved.push(result); return result; },
+    async getMessagesAfter() { return []; },
+    async getLatestMessages() { return []; },
   };
   const server = createRealtimeServer({ port: 3001, corsOrigins: ["http://localhost:5173"] }, deps);
   await new Promise<void>(r => server.http.listen(0, "127.0.0.1", r));
@@ -35,12 +37,12 @@ test("contrato real Socket.IO: salas, persistencia, errores, identidad y presenc
       await ack(c, "room:join", { roomId: "b" });
     });
     const seenA: any[] = [], seenB: any[] = [], seenC: any[] = [];
-    a.on("message:new", x => seenA.push(x)); b.on("message:new", x => seenB.push(x)); c.on("message:new", x => seenC.push(x));
+    a.on("new-message", x => seenA.push(x)); b.on("new-message", x => seenB.push(x)); c.on("new-message", x => seenC.push(x));
     await t.test("dos clientes reciben, otra sala no recibe y persiste antes de emitir", async () => {
       const result = await ack(a, "message:send", { roomId: "a", text: " Hola ", uid: "spoof", username: "spoof" });
       assert.equal(result.ok, true); await delay(60);
       assert.equal(saved.length, 1); assert.equal(seenA.length, 1); assert.equal(seenB.length, 1); assert.equal(seenC.length, 0);
-      assert.equal(saved[0].uid, "one"); assert.equal(saved[0].text, "Hola");
+      assert.equal(saved[0].userId, "one"); assert.equal(saved[0].userName, "user-one"); assert.equal(saved[0].text, "Hola");
     });
     await t.test("vacío, demasiado largo y envío sin pertenencia no escriben", async () => {
       for (const text of ["   ", "x".repeat(4001), null]) assert.equal((await ack(a, "message:send", { roomId: "a", text })).error.code, "INVALID_MESSAGE");

@@ -1,7 +1,7 @@
 import { verifyFirebaseIdToken } from "../../src/services/firebaseTokenVerifier";
 import { findUserByUid } from "../../src/repositories/userRepository";
 import { getRoomById } from "../../src/repositories/roomRepository";
-import { createMessage } from "../../src/repositories/messageRepository";
+import { createMessage, getLatestMessages, getMessagesAfter } from "../../src/repositories/messageRepository";
 import { getDb } from "../../src/config/firebase";
 import type { Dependencies } from "./realtime";
 import type { RoomChangeSource } from "./roomWatcher";
@@ -15,6 +15,8 @@ export const productionDependencies: Dependencies = {
   },
   getRoomById,
   createMessage,
+  getMessagesAfter,
+  getLatestMessages,
 };
 
 /** Cambios de la colección rooms de Firestore para roomWatcher (onSnapshot). */

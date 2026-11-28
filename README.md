@@ -59,6 +59,10 @@ Los documentos de entrega y resultados de QA se conservan fuera de Git. EVIDENCE
 
 `GET /api/v1/rooms/:roomId/join` (Bearer ID token) valida que la sala existe antes de conectarse por Socket.IO (`room:join`). Responde 200 con `{ id, name, hostId }` (hostId = uid del anfitrión) y nada más. Recorta espacios del ID en el servidor; un ID vacío, solo con espacios, inexistente o que no es un ID válido de Firestore responde 404 `ROOM_NOT_FOUND` «Sala no encontrada.» (nunca 500). Solo lee: no añade participantes ni escribe en Firestore. Las salas no tienen campo de estado, así que solo se valida la existencia.
 
+## Mensajería instantánea (US-10)
+
+Los mensajes se guardan en `rooms/{roomId}/messages` con `roomId`, `userId`, `userName`, `text` y `createdAt` (hora del servidor de Firestore). `POST /api/v1/rooms/:roomId/messages` toma el autor del token y del perfil; los documentos antiguos con `uid`/`username` se leen en el mismo formato. El envío y la recepción en vivo (`send-message`, `new-message`, `join-room` con mensajes perdidos) están en backend-realtime/README.md.
+
 ## Perfil US 04
 
 `GET /api/v1/users/me` consulta el perfil; no se duplica con otro GET.

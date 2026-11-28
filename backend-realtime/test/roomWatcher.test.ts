@@ -27,7 +27,9 @@ async function montar(t: any) {
   const deps: Dependencies = {
     async authenticate(token) { return { uid: token, username: `user-${token}`, expiresAt: Date.now() + 60000 }; },
     async getRoomById(id) { return rooms.has(id) ? { id } as any : null; },
-    async createMessage(_roomId, data) { return { id: "m", ...data, createdAt: Timestamp.now() }; },
+    async createMessage(roomId, data) { return { id: "m", roomId, ...data, createdAt: Timestamp.now() }; },
+    async getMessagesAfter() { return []; },
+    async getLatestMessages() { return []; },
   };
   const server = createRealtimeServer({ port: 3001, corsOrigins: ["http://localhost:5173"] }, deps);
   await new Promise<void>(r => server.http.listen(0, "127.0.0.1", r));
